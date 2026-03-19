@@ -1,0 +1,47 @@
+
+function    [unit_normal_vectors] = ...
+			........................................................................................................................................................
+            partition_Unit_Normal_Vectors_On_Unit_Sphere___Sr___M (partition_parameters)
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%	Create an (3 x n_phi x n_theta) matrix containing the cartesian coordinates of the normal vectors at the center of each partitioned sub-surface.        %&%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Partition the input intervals for phi and theta into n_phi and n_theta equal parts, respectively, then identify the centers of each subinterval. 
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+partition_phi_centers                = generate_1D_Subinterval_Centers___RS___R(partition_parameters.phi.interval, partition_parameters.phi.n);
+partition_theta_centers              = generate_1D_Subinterval_Centers___RS___R(partition_parameters.theta.interval, partition_parameters.theta.n);
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Calculate the unit normal vector (in cartesian coordinatse) at the center of each subsurface. Save vector information along the resulting arrays 1st 
+%	dimension, and use its 2nd and 3rd dimensions to index phi and theta, respectively.  
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+unit_normal_vectors                  = zeros(3, partition_parameters.phi.n, partition_parameters.theta.n);
+
+
+for i = 1:partition_parameters.phi.n
+
+	for j = 1:partition_parameters.theta.n
+
+
+		unit_normal_vectors(1:3,i,j) = [
+						  			    cosd(partition_phi_centers(1,i))*cosd(partition_theta_centers(1,j)) ; 
+						  			    cosd(partition_phi_centers(1,i))*sind(partition_theta_centers(1,j)) ;
+						  			    sind(partition_phi_centers(1,i)) 
+						 			   ];
+
+	end
+
+end
+
+
+%%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
