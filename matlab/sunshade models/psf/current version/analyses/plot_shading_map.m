@@ -9,7 +9,7 @@
 %%  USER SETTINGS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-nc_file    = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/numerical control/exports/v.26.03.18-12.32 irradiance factors.nc';
+nc_file    = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/numerical control/exports/v.26.03.19-06.49 irradiance factors.nc';
 time_index = 1;   % Which time step to plot (1 = first day)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -37,12 +37,17 @@ figure('Color', 'w', 'Position', [100 100 1200 600]);
 ax = axes;
 
 % Plot the dimming factor as a filled colour map
-pcolor(lon, lat, df_slice);
+% Shift lon from 0-360 to -180-180
+lon_shifted = lon;
+lon_shifted(lon > 180) = lon(lon > 180) - 360;
+[lon_sorted, sort_idx] = sort(lon_shifted);
+df_sorted = df_slice(:, sort_idx);
+pcolor(lon_sorted, lat, df_sorted);
 shading flat;
 
 % Colour scale: 1 = no dimming (full sunlight), 0 = fully shaded
 colormap(ax, interp1([0 1], [0.2 0.4 1; 1 0.5 0], linspace(0,1,256)));
-clim([min(df_slice(:)) max(df_slice(:))]);
+clim([min(df_sorted(:)) max(df_sorted(:))]);
 cb = colorbar;
 cb.Label.String = 'Irradiance factor (1 = full sun, 0 = fully shaded)';
 cb.Label.FontSize = 11;
@@ -50,9 +55,17 @@ cb.Label.FontSize = 11;
 hold on;
 
 %% --- Overlay coastlines ---
-% Uses MATLAB's built-in 'coast' dataset (load coast)
-load coast;                      % provides 'lat' and 'long' variables
-plot(long, lat, 'w-', 'LineWidth', 0.6);   % coastlines in black
+% Download coastline data (only needed once)
+coast_url  = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_coastline.geojson';
+coast_file = fullfile(tempdir, 'coastline.geojson');
+if ~isfile(coast_file)
+    websave(coast_file, coast_url);
+end
+coast_data = jsondecode(fileread(coast_file));
+for k = 1:numel(coast_data.features)
+    coords = coast_data.features(k).geometry.coordinates;
+    plot(coords(:,1), coords(:,2), 'k-', 'LineWidth', 0.6);
+end
 
 %% --- Formatting ---
 axis([-180 180 -90 90]);
@@ -75,17 +88,17 @@ ax.FontSize       = 10;
 ax.DataAspectRatio = [1 1 1];
 
 %% --- Summary statistics in a text box ---
-mean_df = mean(df_slice(:), 'omitnan');
-min_df  = min(df_slice(:),  [], 'omitnan');
-frac_shaded = mean(df_slice(:) < 1, 'omitnan') * 100;
+mean_df = mean(df_sorted(:), 'omitnan');
+min_df  = min(df_sorted(:),  [], 'omitnan');
+frac_shaded = mean(df_sorted(:) < max(df_sorted(:)), 'omitnan') * 100;
 
 annotation('textbox', [0.01 0.01 0.25 0.10], ...
-    'String', sprintf('Mean irradiance factor: %.4f\nMin irradiance factor:  %.4f\nFraction of Earth shaded: %.1f%%', ...
+    'String', sprintf('Mean irradiance factor: %.8f\nMin irradiance factor:  %.8f\nFraction of Earth shaded: %.1f%%', ...
                       mean_df, min_df, frac_shaded), ...
     'EdgeColor', 'k', 'BackgroundColor', 'w', ...
     'FontSize', 9, 'FitBoxToText', 'on');
 
 fprintf('\n--- Time index %d  (%s) ---\n', time_index, date_str);
-fprintf('Mean irradiance factor : %.4f\n', mean_df);
-fprintf('Min  irradiance factor : %.4f\n', min_df);
+fprintf('Mean irradiance factor : %.8f\n', mean_df);
+fprintf('Min  irradiance factor : %.8f\n', min_df);
 fprintf('Fraction of globe < 1  : %.1f%%\n', frac_shaded);
