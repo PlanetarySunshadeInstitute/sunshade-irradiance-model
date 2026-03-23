@@ -1,0 +1,315 @@
+% place_spacecraft.m
+%
+% Generates spacecraft positions for a constellation near the Sun-Earth L1
+% point, distributed across multiple X-depth planes within the Glasgow
+% stability envelope and the user-specified constellation footprint.
+%
+% USAGE
+%   positions = place_spacecraft(params, envelope)
+%
+% The constellation footprint (constellation_radius_km) is the primary
+% size constraint — it defines the circle in the Y-Z plane within which
+% craft are placed. This should be <= solar_disk_radius_km (10,980 km)
+% for sails to actually intercept sunlight.
+%
+% The Glasgow envelope is a secondary constraint — it defines where craft
+% CAN go from a propulsion standpoint. At the optimal zone the envelope
+% is ~222,000 km in Z, far larger than the useful footprint.
+%
+% Minimum separation is enforced in 3D. Cross-plane separation is
+% guaranteed by plane_spacing_km >> min_buffer_km. Within-plane
+% separation is enforced by rejection resampling of violating craft.
+%
+% Authors: Planetary Sunshade Foundation
+
+function positions = place_spacecraft(params, envelope)
+
+fprintf('[place] Generating %d spacecraft (%s pattern, %d planes)...\n', ...
+        params.N, params.pattern, params.n_planes);
+
+PX       = zeros(params.N, 1);
+PY       = zeros(params.N, 1);
+PZ       = zeros(params.N, 1);
+plane_id = zeros(params.N, 1);
+
+cursor = 1;
+
+for p = 1:params.n_planes
+
+    X_plane = params.X_planes_km(p);
+    N_plane = params.N_per_plane(p);
+
+    % Envelope semi-axes at this X (secondary constraint)
+    a_env = interp1(envelope.X_km, envelope.a_km, X_plane, 'linear', 'extrap');
+    b_env = interp1(envelope.X_km, envelope.b_km, X_plane, 'linear', 'extrap');
+    a_env = max(a_env, 1);
+    b_env = max(b_env, 1);
+
+    % Primary footprint constraint: circle of constellation_radius_km
+    % We pass both to the pattern functions — placement must satisfy both
+    R = params.constellation_radius_km;
+
+    switch params.pattern
+        case 'uniform'
+            [Y, Z] = pattern_uniform(N_plane, R, a_env, b_env, ...
+                                     envelope.safety_margin, params);
+        case 'polar'
+            [Y, Z] = pattern_polar(N_plane, R, a_env, b_env, ...
+                                    envelope.safety_margin, params);
+        otherwise
+            error('[place] Unknown pattern: "%s"', params.pattern);
+    end
+
+    % Enforce minimum separation within this plane
+    [Y, Z] = enforce_min_buffer(Y, Z, R, params.min_buffer_km);
+
+    idx           = cursor : cursor + N_plane - 1;
+    PX(idx)       = X_plane;
+    PY(idx)       = Y;
+    PZ(idx)       = Z;
+    plane_id(idx) = p;
+    cursor        = cursor + N_plane;
+
+end
+
+% Final envelope validation
+n_invalid = sum(~check_position_valid(envelope, PY, PZ, PX));
+if n_invalid > 0
+    warning('[place] %d / %d positions outside Glasgow stability envelope.', ...
+            n_invalid, params.N);
+else
+    fprintf('[place] All positions valid within stability envelope.\n');
+end
+
+positions.PX       = PX;
+positions.PY       = PY;
+positions.PZ       = PZ;
+positions.NX       = ones(params.N, 1);
+positions.NY       = zeros(params.N, 1);
+positions.NZ       = zeros(params.N, 1);
+positions.plane_id = plane_id;
+positions.pattern  = params.pattern;
+
+fprintf('[place] Done.\n\n');
+
+end
+
+
+% =========================================================================
+%  PATTERN: UNIFORM
+% =========================================================================
+
+function [Y, Z] = pattern_uniform(N, R, a_env, b_env, safety_margin, params)
+% PATTERN_UNIFORM
+%
+% Places N craft within the constellation footprint (radius R).
+% Profile is either flat ('uniform') or centre-peaked ('gaussian'),
+% set by params.footprint_profile.
+%
+% All positions also checked against the Glasgow ellipse envelope.
+
+Y = zeros(N, 1);
+Z = zeros(N, 1);
+filled = 0;
+batch  = ceil(N * 2);
+
+while filled < N
+
+    if strcmp(params.footprint_profile, 'gaussian')
+        % Draw from 2D isotropic Gaussian, sigma = footprint_sigma_km
+        sig   = params.footprint_sigma_km;
+        Y_c   = sig * randn(batch, 1);
+        Z_c   = sig * randn(batch, 1);
+    else
+        % Uniform in bounding square, reject outside circle
+        Y_c = (2 * rand(batch, 1) - 1) * R;
+        Z_c = (2 * rand(batch, 1) - 1) * R;
+    end
+
+    % Accept if inside footprint circle
+    in_footprint = (Y_c.^2 + Z_c.^2) <= R^2;
+
+    % Accept if inside Glasgow envelope ellipse
+    in_envelope  = (Y_c / a_env).^2 + (Z_c / b_env).^2 <= safety_margin;
+
+    accept = in_footprint & in_envelope;
+    Y_in   = Y_c(accept);
+    Z_in   = Z_c(accept);
+
+    n_take = min(N - filled, numel(Y_in));
+    Y(filled+1 : filled+n_take) = Y_in(1:n_take);
+    Z(filled+1 : filled+n_take) = Z_in(1:n_take);
+    filled = filled + n_take;
+
+end
+
+end
+
+
+% =========================================================================
+%  PATTERN: POLAR
+% =========================================================================
+
+function [Y, Z] = pattern_polar(N, R, a_env, b_env, safety_margin, params)
+% PATTERN_POLAR
+%
+% Base layer: floor(N * (1-polar_fraction)) craft placed uniformly.
+% Targeting layer: remainder placed with Gaussian Z-weighting.
+% Split is computed locally from the plane's N, not the global N.
+
+% Compute local split from this plane's N
+N_uniform  = round(N * (1 - params.polar_fraction));
+N_targeted = N - N_uniform;
+
+% Base layer
+[Y_u, Z_u] = pattern_uniform(N_uniform, R, a_env, b_env, safety_margin, params);
+
+% Targeting layer
+Y_t = zeros(N_targeted, 1);
+Z_t = zeros(N_targeted, 1);
+
+switch params.hemisphere
+    case 'north'
+        Z_centers = params.Z_center_km;
+        N_splits  = N_targeted;
+    case 'south'
+        Z_centers = -params.Z_center_km;
+        N_splits  = N_targeted;
+    case 'both'
+        Z_centers = [ params.Z_center_km, -params.Z_center_km];
+        N_splits  = [floor(N_targeted/2), N_targeted - floor(N_targeted/2)];
+end
+
+cursor = 1;
+for h = 1:numel(Z_centers)
+
+    Zc    = Z_centers(h);
+    Ns    = N_splits(h);
+    sigma = params.Z_sigma_km;
+
+    Y_h    = zeros(Ns, 1);
+    Z_h    = zeros(Ns, 1);
+    filled = 0;
+    batch  = ceil(Ns * 3);
+
+    while filled < Ns
+        Z_c          = Zc + sigma * randn(batch, 1);
+        max_Y_at_Z   = sqrt(max(0, R^2 - Z_c.^2));
+        in_footprint = max_Y_at_Z > 0;
+        Z_c          = Z_c(in_footprint);
+        max_Y_at_Z   = max_Y_at_Z(in_footprint);
+        if isempty(Z_c); continue; end
+
+        Y_c    = (2 * rand(numel(Z_c), 1) - 1) .* max_Y_at_Z;
+        in_env = (Y_c / a_env).^2 + (Z_c / b_env).^2 <= safety_margin;
+        Y_c    = Y_c(in_env);
+        Z_c    = Z_c(in_env);
+
+        n_take = min(Ns - filled, numel(Z_c));
+        Y_h(filled+1:filled+n_take) = Y_c(1:n_take);
+        Z_h(filled+1:filled+n_take) = Z_c(1:n_take);
+        filled = filled + n_take;
+    end
+
+    Y_t(cursor:cursor+Ns-1) = Y_h;
+    Z_t(cursor:cursor+Ns-1) = Z_h;
+    cursor = cursor + Ns;
+end
+
+Y = [Y_u; Y_t];
+Z = [Z_u; Z_t];
+
+% Final size guard — should never trigger, but catches any off-by-one
+if numel(Y) ~= N
+    error('[pattern_polar] Output size %d does not match requested N=%d.', ...
+          numel(Y), N);
+end
+
+end
+
+% =========================================================================
+%  HELPER: ENFORCE MINIMUM BUFFER (within a single plane, 3D-aware)
+% =========================================================================
+
+function [Y, Z] = enforce_min_buffer(Y, Z, R, min_buffer_km)
+% ENFORCE_MIN_BUFFER
+%
+% Finds craft pairs closer than min_buffer_km and re-draws the offending
+% craft within the footprint circle. Iterates until all violations are
+% resolved or max_attempts is reached.
+%
+% Violations persist only due to random re-draw bad luck, not density.
+% Increasing max_attempts resolves almost all cases.
+
+max_attempts = 50;    % increased from 10 — space is sparse, just needs luck
+N = numel(Y);
+
+for attempt = 1:max_attempts
+
+    dY           = Y - Y';
+    dZ           = Z - Z';
+    D            = sqrt(dY.^2 + dZ.^2);
+    D(1:N+1:end) = Inf;
+
+    violators = find(any(D < min_buffer_km, 2));
+    if isempty(violators); return; end
+
+    n_v    = numel(violators);
+    filled = 0;
+    batch  = ceil(n_v * 2);
+    Y_new  = zeros(n_v, 1);
+    Z_new  = zeros(n_v, 1);
+
+    while filled < n_v
+        Y_c    = (2 * rand(batch, 1) - 1) * R;
+        Z_c    = (2 * rand(batch, 1) - 1) * R;
+        keep   = Y_c.^2 + Z_c.^2 <= R^2;
+        Y_c    = Y_c(keep);
+        Z_c    = Z_c(keep);
+        n_take = min(n_v - filled, numel(Y_c));
+        Y_new(filled+1:filled+n_take) = Y_c(1:n_take);
+        Z_new(filled+1:filled+n_take) = Z_c(1:n_take);
+        filled = filled + n_take;
+    end
+
+    Y(violators) = Y_new;
+    Z(violators) = Z_new;
+
+end
+
+% Final check — if violations remain after max_attempts, they are
+% exported at invalid positions. This is a placement failure, not a
+% density problem. The space can hold far more craft at this buffer.
+% Increasing max_attempts in enforce_min_buffer will resolve this.
+D_final              = sqrt((Y - Y').^2 + (Z - Z').^2);
+D_final(1:N+1:end)   = Inf;
+still_violating      = any(D_final < min_buffer_km, 2);
+n_remain             = sum(still_violating);
+
+if n_remain > 0
+    min_sep = min(D_final(D_final < min_buffer_km));
+    warning(['[place] PLACEMENT FAILURE: %d craft could not be placed within ' ...
+             'the minimum buffer of %.0f km after %d attempts.\n' ...
+             '         These craft are too close to a neighbor in the output ' ...
+             'file and should not be used.\n' ...
+             '         Closest violation: %.1f km (buffer requires %.0f km).\n' ...
+             '         Fix: increase max_attempts in enforce_min_buffer, or ' ...
+             'increase min_buffer_km / reduce sail_radius_km.'], ...
+             n_remain, min_buffer_km, max_attempts, min_sep, min_buffer_km);
+end
+
+end
+
+
+% =========================================================================
+%  HELPER: CHECK POSITION VALID
+% =========================================================================
+
+function valid = check_position_valid(envelope, Y_km, Z_km, X_km)
+a_interp    = interp1(envelope.X_km, envelope.a_km, X_km, 'linear', 'extrap');
+b_interp    = interp1(envelope.X_km, envelope.b_km, X_km, 'linear', 'extrap');
+a_interp    = max(a_interp, 1);
+b_interp    = max(b_interp, 1);
+ellipse_val = (Y_km ./ a_interp).^2 + (Z_km ./ b_interp).^2;
+valid       = ellipse_val <= envelope.safety_margin;
+end
