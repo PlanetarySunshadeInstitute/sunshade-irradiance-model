@@ -1,7 +1,7 @@
 
 function    [results] = ...
 			........................................................................................................................................................
-            analysis_Iterate_And_Switch___Sr2St___M (time, analysis_type, counter_display)
+            analysis_Iterate_And_Switch___Sr2St___M (time, partitions, analysis_type, counter_display)
 
 
 
@@ -60,20 +60,20 @@ for i = 1:time.periods
 
 			case 'irradiance'
 				
-				results_initial           = analysis_Irradiance___Sr___nM(time);
+				results_initial           = analysis_Irradiance___Sr___nM(time, partitions);
 
 			case 'shaded irradiance'
 				
-				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time);
+				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time, partitions);
 
 			case 'shading factor'                 
 
-				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time) ./ analysis_Irradiance___Sr___nM(time);
+				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time, partitions) ./ analysis_Irradiance___Sr___nM(time, partitions);
 				results_initial           = min(1,results_initial);
 
 			case 'irradiance factor'
 
-				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time) ./ analysis_Irradiance___Sr___nM(time);
+				results_initial           = analysis_Shaded_Irradiance___Sr___nM(time, partitions) ./ analysis_Irradiance___Sr___nM(time, partitions);
 				results_initial           = min(1,results_initial);
 				results_initial           = 1 - results_initial;
 				
@@ -132,20 +132,20 @@ for i = 1:time.periods
 
 			case 'irradiance'
 				
-				results(indices_intemporal{:}, i) = analysis_Irradiance___Sr___nM(time);
+				results(indices_intemporal{:}, i) = analysis_Irradiance___Sr___nM(time, partitions);
 
 			case 'shaded irradiance'
 				
-				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time);
+				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time, partitions);
 
 			case 'shading factor'                 
 
-				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time) ./ analysis_Irradiance___Sr___nM(time);
+				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time, partitions) ./ analysis_Irradiance___Sr___nM(time, partitions);
 				results(indices_intemporal{:}, i) = min(1, results(indices_intemporal{:}, i));
 
 			case 'irradiance factor'
 
-				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time) ./ analysis_Irradiance___Sr___nM(time);
+				results(indices_intemporal{:}, i) = analysis_Shaded_Irradiance___Sr___nM(time, partitions) ./ analysis_Irradiance___Sr___nM(time, partitions);
 				results(indices_intemporal{:}, i) = min(1, results(indices_intemporal{:}, i));
 				results(indices_intemporal{:}, i) = 1 - results(indices_intemporal{:}, i);
 				

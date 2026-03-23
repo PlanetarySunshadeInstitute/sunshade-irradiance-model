@@ -1,7 +1,7 @@
 
 function    [shaded_irradiances] = ...
 			........................................................................................................................................................ 
-            analysis_Shaded_Irradiance___Sr___nM(time_UTC)
+            analysis_Shaded_Irradiance___Sr___nM(time_UTC, partitions)
 
 
 
@@ -15,7 +15,7 @@ function    [shaded_irradiances] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-[model_parameters, radii, luminosity_S, spectral_data, change_of_bases, origins, partitions] = import_Analysis_Variables___ASr___6SrS({'planet', 'shade'}, time_UTC);
+[model_parameters, radii, luminosity_S, spectral_data, change_of_bases, origins] = import_Analysis_Variables___Sr___5SrS(time_UTC);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -35,6 +35,7 @@ function    [shaded_irradiances] = ...
 
 partitions.shade.initial   = partition_Transform_Shift_Normalize___SrMC___Sr(partitions.shade.heliogyros.initial, change_of_bases.shade, origins.shade);
 
+
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Sort the shade position and normal vectors by the coordinate values of their positions (x > y > z).  
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -46,13 +47,14 @@ indexes_sorted                          = indexes_sorted';
 partitions.shade.initial.positions      = partitions.shade.initial.positions(:,indexes_sorted);
 partitions.shade.initial.normal_vectors = partitions.shade.initial.normal_vectors(:,indexes_sorted);
 
+
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Scale the Planet partition's normal vectors by the radius of the planet (to get positions), and perform the appropriate change of basis and origin shift so 
 %	they're represented in the common coordinate system.      
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-partitions.positions.planet             = partition_Scale_Transform_Shift___2MCS___Sr(partitions.positions.planet, change_of_bases.planet, origins.planet);
+partitions.positions.planet      = partition_Scale_Transform_Shift___2MCS___Sr(partitions.positions.planet, change_of_bases.planet, origins.planet);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -69,7 +71,7 @@ partitions.positions.planet             = partition_Scale_Transform_Shift___2MCS
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-shaded_irradiances = zeros([model_parameters.planet.dimensions.actual spectral_data.number_of_bands]);
+shaded_irradiances          = zeros([model_parameters.planet.dimensions.actual spectral_data.number_of_bands]);
 
 
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
@@ -103,15 +105,17 @@ for j = 1:size(partitions.positions.planet, 3)
 %	Eliminate normal vectors for Planet-Shade axes that didn't intersect the Star.     
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
+
 	unit_normal_vectors_S   = unit_normal_vectors_S(:, vectors.that_intersect_sphere);
 	
+
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Project the areas of the shades onto the Planet-Shade-Star axes    
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-	% ORIGINAL: projected_shade_areas   = model_parameters.shade.heliogyro.area_effective * vectors.unit.p.S .* unit_normal_vectors_S;
-    projected_shade_areas = model_parameters.shade.heliogyro.area_effective * sum(vectors.unit.p.S .* unit_normal_vectors_S, 1);
+	projected_shade_areas   = model_parameters.shade.heliogyro.area_effective * sum(vectors.unit.p.S .* unit_normal_vectors_S, 1);
+
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Project the resulting shaded areas geometrically (like a cone) to the points on the Star surface.     

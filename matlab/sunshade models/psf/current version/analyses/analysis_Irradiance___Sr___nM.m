@@ -1,7 +1,7 @@
 
 function    [irradiances_P] = ...
 			........................................................................................................................................................ 
-            analysis_Irradiance___Sr___nM(time_UTC)
+            analysis_Irradiance___Sr___nM(time_UTC, partitions)
 
 
 
@@ -15,7 +15,7 @@ function    [irradiances_P] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-[model_parameters, radii, luminosity_S, spectral_data, change_of_bases, origins, partitions] = import_Analysis_Variables___ASr___6SrS({'star','planet'}, time_UTC);
+[model_parameters, ~, luminosity_S, spectral_data, change_of_bases, origins] = import_Analysis_Variables___Sr___5SrS(time_UTC);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

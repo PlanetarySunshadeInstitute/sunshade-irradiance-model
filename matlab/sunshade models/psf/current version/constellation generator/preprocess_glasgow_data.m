@@ -58,7 +58,7 @@ fprintf('=== Glasgow Equilibrium Region Preprocessor ===\n\n');
 % -------------------------------------------------------------------------
 % USER SETTING — edit this path before running
 % -------------------------------------------------------------------------
-glasgow_file = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/matlab/sunshade models/psf/excel/psf model/L1_Stability_Region_Data.xlsx';
+glasgow_file = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model/L1_Stability_Region_Data.xlsx';
 output_file  = fullfile(fileparts(mfilename('fullpath')), 'equilibrium_envelope.mat');
 
 % -------------------------------------------------------------------------

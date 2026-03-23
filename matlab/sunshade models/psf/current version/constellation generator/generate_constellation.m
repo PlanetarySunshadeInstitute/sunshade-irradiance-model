@@ -19,9 +19,9 @@ clear; clc;
 % =========================================================================
 
 % --- Paths ---------------------------------------------------------------
-envelope_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/matlab/sunshade models/psf/current version/constellation generator', ...
+envelope_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab/matlab/sunshade models/psf/current version/constellation generator', ...
                           'equilibrium_envelope.mat');
-excel_folder  = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/excel/psf model';
+excel_folder  = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model';
 
 % --- Constellation parameters --------------------------------------------
 user_params.pattern                 = 'uniform';   % 'uniform' or 'polar'

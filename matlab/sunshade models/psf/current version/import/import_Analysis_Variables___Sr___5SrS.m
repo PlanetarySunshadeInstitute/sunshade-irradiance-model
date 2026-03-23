@@ -1,66 +1,53 @@
 
-function    [polygon] = ...
+function    [model_parameters, radii, luminosity_S, spectral_data, change_of_bases, origins] = ...
 			........................................................................................................................................................
-            generate_Polygon_Vertices_R2x0___Sr___Sr (parameters) 
+            import_Analysis_Variables___Sr___5SrS (time_UTC)
 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%	Generate the input regular polygon as a 2D polyshape in Matlab.                                                                                         %&%%
+%%%%	Import model parameters, physical parameters, kinematics data, spectral data, change of bases and origin transformations.                               %&%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Partition the inner and outer angles (2pi) based on the input number of vertices.    
+%	Import the input model parameters.      
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-angle_partitions_inner           = [0 : (2*pi/parameters.sides.inner) : 2*pi];
-angle_partitions_outer           = [0 : (2*pi/parameters.sides.outer) : 2*pi];
+model_parameters            = import_Model_Parameters___0___Sr;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	If the partition created a point at 2pi, remove this point (as it's covered by 0).     
+%	Import the structure containing physical and estimated constants: radii (km) of the Star and Planet, and the Star's luminosity (W). 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-if angle_partitions_inner(1,end) == 2*pi
-
-	angle_partitions_inner       = angle_partitions_inner(1,1:end-1);
-
-end
-
-
-if angle_partitions_outer(1,end) == 2*pi
-
-	angle_partitions_outer       = angle_partitions_outer(1,1:end-1);
-
-end
-
+[radii, ~, ~, luminosity_S] = parameters_Physical___0___2Sr2S;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Convert entered apothems to circumradii.     
+%	Import the star planet kinematics data.   
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-parameters.radii.inner           = parameters.radii.inner / cos(angle_partitions_inner(1,2)/2); 
-parameters.radii.outer           = parameters.radii.outer / cos(angle_partitions_inner(1,2)/2);
+kinematics_SP_data          = import_Star_Planet_Kinematics_Data___Sr___Sr(time_UTC);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Generate the sets of coordinates describing the inner and outer contours.     
+%	Import the spectral data.       
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-polygon.R2x0.vertices.inner(1,:) = parameters.radii.inner * cos(angle_partitions_inner);
-polygon.R2x0.vertices.inner(2,:) = parameters.radii.inner * sin(angle_partitions_inner);
-polygon.R2x0.vertices.inner(3,:) = 0;
+spectral_data               = import_Spectral_Data___0___Sr;
 
 
-polygon.R2x0.vertices.outer(1,:) = parameters.radii.outer * cos(angle_partitions_outer);
-polygon.R2x0.vertices.outer(2,:) = parameters.radii.outer * sin(angle_partitions_outer);
-polygon.R2x0.vertices.outer(3,:) = 0;
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Import the change of basis and origin transformations (dependent on kinematics data) to represent the Star and Planet vectors in the same coordinate system.   
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+[change_of_bases, origins]  = define_Coordinate_Transformations___Sr___2Sr(kinematics_SP_data);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

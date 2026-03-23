@@ -19,7 +19,7 @@
 
 clear; clc; close all;
 
-filename = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/excel/psf model/ArchA_V1-L1.1.xlsx';
+filename = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model/ArchA_V1-L1.2.xlsx';
 
 % Data starts at row 11 (row 10 is the PX/PY/PZ/NX/NY/NZ header)
 opts = spreadsheetImportOptions('NumVariables', 6);

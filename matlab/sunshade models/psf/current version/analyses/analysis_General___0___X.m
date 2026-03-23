@@ -6,7 +6,7 @@ function    [varargout] = ...
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%	Start the program stopwatch, import the input model parameters, and begin a switch statement on the model settings.                                     %&%%
+%%%%	Start the program stopwatch, import the input model parameters and partitions, and begin a switch statement on the model settings.                      %&%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -19,11 +19,28 @@ tic
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Import the input model parameters.      
+%	Import the input model and physical parameters.      
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
 model_parameters = import_Model_Parameters___0___Sr;
+[radii, ~, ~, ~] = parameters_Physical___0___2Sr2S;
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	If the analysis looks just at irradiance, import the star and planet partitions. Otherwise import the shade partitions as well.     
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+if strcmp(model_parameters.analysis_type, 'irradiance')
+
+	partitions   = generate_Partitions___A___Sr(model_parameters, {'star', 'planet'}, radii);
+
+else 
+
+	partitions   = generate_Partitions___A___Sr(model_parameters, {'star', 'planet', 'shade'}, radii);
+
+end
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -59,7 +76,7 @@ switch true
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, model_parameters.analysis_type, counter_display);
+		results         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, partitions, model_parameters.analysis_type, counter_display);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -68,6 +85,20 @@ switch true
 
 
 		varargout{1}    = results;
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Compute and display the area-weighted mean analysis type along the column,
+%	reflecting the fact that Earth's rotation distributes shade across all longitudes.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+		latitudes_deg   = linspace(-90, 90, size(results, 1));
+		weights         = cosd(latitudes_deg);
+		weights         = weights / sum(weights);
+		central_col     = ceil(size(results, 2) / 2);
+		central_strip   = results(:, central_col);
+		mean_irradiance = sum(central_strip .* weights');
+		fprintf('\nArea-weighted mean %s: %.4f\n\n', model_parameters.analysis_type, mean_irradiance);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -125,12 +156,13 @@ switch true
 
 		counter_display                 = 'currently on regular year day: ';
 
+
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Analyze the results.    
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, model_parameters.analysis_type, counter_display);
+		results                         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, partitions, model_parameters.analysis_type, counter_display);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -187,7 +219,7 @@ switch true
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, model_parameters.analysis_type, counter_display);
+		results                         = analysis_Iterate_And_Switch___Sr2St___M (model_parameters.time, partitions, model_parameters.analysis_type, counter_display);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%

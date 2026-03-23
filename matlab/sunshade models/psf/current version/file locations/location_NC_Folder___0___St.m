@@ -15,6 +15,6 @@ function    [location_NC_Folder] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-location_NC_Folder = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/numerical control/';
+location_NC_Folder = '/Users/morgangoodwin/Desktop/PSF/MatLab/numerical control/';
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
