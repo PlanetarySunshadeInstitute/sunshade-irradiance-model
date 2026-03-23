@@ -16,6 +16,6 @@ function    [location_Excel_Folder] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-location_Excel_Folder = '/Users/morgangoodwin/Desktop/PSF/MatLab - Planetary Sunshade Foundation/excel/psf model/';
+location_Excel_Folder = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model/';
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
