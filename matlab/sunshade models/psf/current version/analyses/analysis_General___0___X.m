@@ -124,6 +124,7 @@ switch true
 
 
 		nc_files                        = location_NC_Templates_And_Exports___0___Sr;
+		excel_file                      = location_Heliogyro_Kinematics_Data___E___Sr;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -246,6 +247,30 @@ switch true
 		ncwrite(nc_files.locations.exports.current_file, 'dfl', results);
 		ncwrite(nc_files.locations.exports.current_file, 'dfl', results);
 		clear results
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Rename the exported NC file to reflect the constellation type and export date.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		if     contains(excel_file.name, 'uniform',   'IgnoreCase', true), shading_code = 'U';
+		elseif contains(excel_file.name, 'gaussian',  'IgnoreCase', true), shading_code = 'G';
+		elseif contains(excel_file.name, 'polar',     'IgnoreCase', true), shading_code = 'P';
+		elseif contains(excel_file.name, 'seasonal',  'IgnoreCase', true), shading_code = 'S';
+		else,                                                                shading_code = 'X';
+		end
+
+		date_str                        = char(datetime('now', 'Format', 'yyyy-MM-dd'));
+		[folder, ~, ~]                  = fileparts(nc_files.locations.exports.current_file);
+		serial                          = 1;
+		new_file                        = fullfile(folder, sprintf('L1-R%s-%s-%03d.nc', shading_code, date_str, serial));
+		while isfile(new_file)
+			serial                      = serial + 1;
+			new_file                    = fullfile(folder, sprintf('L1-R%s-%s-%03d.nc', shading_code, date_str, serial));
+		end
+		movefile(nc_files.locations.exports.current_file, new_file);
+		nc_files.locations.exports.current_file = new_file;
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

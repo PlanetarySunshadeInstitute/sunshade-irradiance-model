@@ -14,9 +14,10 @@ function    [excel_file] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-excel_file_name                    = 'constellation_uniform_6700crafts_2026-03-20.xlsx';
+excel_file_name                    = 'constellation_polar_10000crafts_2026-03-24.xlsx';
 excel_file_folder                  = location_Excel_Folder___0___St;
 excel_file.location                = strcat(excel_file_folder, excel_file_name);
+excel_file.name                    = excel_file_name;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%

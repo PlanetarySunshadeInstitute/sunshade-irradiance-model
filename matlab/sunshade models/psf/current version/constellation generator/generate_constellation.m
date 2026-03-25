@@ -24,21 +24,21 @@ envelope_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab/matlab/sunshad
 excel_folder  = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model';
 
 % --- Constellation parameters --------------------------------------------
-user_params.pattern                 = 'uniform';   % 'uniform' or 'polar'
-user_params.N                       = 7000;
-user_params.n_planes                = 1;
+user_params.pattern                 = 'polar';   % 'uniform' or 'polar'
+user_params.N                       = 10000;
+user_params.n_planes                = 10;
 user_params.plane_spacing_km        = 10000;
 
-user_params.constellation_radius_km = 10000;
-user_params.footprint_profile       = 'uniform';
-user_params.footprint_sigma_fraction= 0.4;
+user_params.constellation_radius_km = 7000;
+user_params.footprint_profile       = 'gaussian';
+user_params.footprint_sigma_fraction= 0.5;
 
 user_params.sail_radius_km          = 20;
 user_params.min_buffer_km           = 50;
 
 % Polar only (ignored for uniform):
-user_params.polar_fraction          = 0.33;
-user_params.target_latitude_deg     = 60;
+user_params.polar_fraction          = 0.99;
+user_params.target_latitude_deg     = 70;
 user_params.latitude_band_width_deg = 20;
 user_params.hemisphere              = 'both';
 
@@ -48,9 +48,14 @@ user_params.hemisphere              = 'both';
 
 envelope  = load_envelope(envelope_file);
 params    = define_constellation_params(user_params);
-positions = place_spacecraft(params, envelope);
+[positions, n_violations] = place_spacecraft(params, envelope);
 
-visualize_constellation(positions, params, envelope);
+% Pre-compute expected output filename so the stats panel can display it.
+params.output_filename = sprintf('constellation_%s_%dcrafts_%s.xlsx', ...
+                                  params.pattern, params.N, ...
+                                  datestr(now, 'yyyy-mm-dd'));
+
+visualize_constellation(positions, params, envelope, n_violations);
 
 % Pause for user confirmation before writing the Excel file
 input_val = input('Constellation looks correct? Export to Excel? (y/n): ', 's');

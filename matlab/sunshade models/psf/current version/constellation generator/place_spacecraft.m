@@ -22,15 +22,16 @@
 %
 % Authors: Planetary Sunshade Foundation
 
-function positions = place_spacecraft(params, envelope)
+function [positions, n_violations] = place_spacecraft(params, envelope)
 
 fprintf('[place] Generating %d spacecraft (%s pattern, %d planes)...\n', ...
         params.N, params.pattern, params.n_planes);
 
-PX       = zeros(params.N, 1);
-PY       = zeros(params.N, 1);
-PZ       = zeros(params.N, 1);
-plane_id = zeros(params.N, 1);
+PX          = zeros(params.N, 1);
+PY          = zeros(params.N, 1);
+PZ          = zeros(params.N, 1);
+plane_id    = zeros(params.N, 1);
+n_violations = 0;
 
 cursor = 1;
 
@@ -61,7 +62,8 @@ for p = 1:params.n_planes
     end
 
     % Enforce minimum separation within this plane
-    [Y, Z] = enforce_min_buffer(Y, Z, R, params.min_buffer_km);
+    [Y, Z, n_v] = enforce_min_buffer(Y, Z, R, params.min_buffer_km);
+    n_violations = n_violations + n_v;
 
     idx           = cursor : cursor + N_plane - 1;
     PX(idx)       = X_plane;
@@ -231,7 +233,7 @@ end
 %  HELPER: ENFORCE MINIMUM BUFFER (within a single plane, 3D-aware)
 % =========================================================================
 
-function [Y, Z] = enforce_min_buffer(Y, Z, R, min_buffer_km)
+function [Y, Z, n_remain] = enforce_min_buffer(Y, Z, R, min_buffer_km)
 % ENFORCE_MIN_BUFFER
 %
 % Finds craft pairs closer than min_buffer_km and re-draws the offending
@@ -252,7 +254,7 @@ for attempt = 1:max_attempts
     D(1:N+1:end) = Inf;
 
     violators = find(any(D < min_buffer_km, 2));
-    if isempty(violators); return; end
+    if isempty(violators); n_remain = 0; return; end
 
     n_v    = numel(violators);
     filled = 0;

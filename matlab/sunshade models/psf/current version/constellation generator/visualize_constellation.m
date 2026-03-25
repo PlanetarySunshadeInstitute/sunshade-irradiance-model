@@ -1,34 +1,56 @@
 % visualize_constellation.m
 %
 % Produces a single diagnostic figure for a generated constellation.
-% Four panels: Y-Z face-on view, X-Y side view, X-Z side view, stats.
+% Four panels (2x2):
+%
+%   [1] Y-Z face-on view       — constellation geometry, coloured by plane
+%   [2] Limb darkening heatmap — solar disk coverage weighted by LD effectiveness
+%   [3] 3-D scatter            — full spatial distribution coloured by plane
+%   [4] Condensed stats
 %
 % USAGE
+%   visualize_constellation(positions, params)
 %   visualize_constellation(positions, params, envelope)
+%   visualize_constellation(positions, params, envelope, violations)
+%
+% INPUTS
+%   positions   struct with fields PX, PY, PZ (km, relative to L1),
+%               and plane_id (integer 1..n_planes)
+%   params      struct — see constellation generator for full field list
+%   violations  (optional) integer count of buffer violations from
+%               place_spacecraft; shown in red in the stats panel if > 0
 %
 % Authors: Planetary Sunshade Foundation
 
-function visualize_constellation(positions, params, envelope)
+function visualize_constellation(positions, params, ~, violations)
+
+if nargin < 4
+    violations = 0;
+end
 
 % -------------------------------------------------------------------------
 % SETUP
 % -------------------------------------------------------------------------
 n_planes     = params.n_planes;
-plane_colors = lines(n_planes);   % one color per plane, no toolbox needed
-dot_size     = 1;
+plane_colors = lines(n_planes);
+dot_size     = 2;
 
 theta_circle = linspace(0, 2*pi, 300);
 R            = params.constellation_radius_km;
 solar_R      = params.solar_disk_radius_km;
 
-fig = figure('Name', 'Constellation Geometry', ...
-             'NumberTitle', 'off', ...
-             'Position', [100 100 1200 500]);
+% L1-to-Sun distance (km) — used for solar disk projection only
+d_L1_sun = 148478496;   % ~1 AU minus L1 distance
 
-% -------------------------------------------------------------------------
-% PANEL 1 — Y-Z face-on (as seen from Sun / Earth)
-% -------------------------------------------------------------------------
-ax1 = subplot(1, 4, 1);
+fig = figure('Name', 'Constellation Diagnostic', ...
+             'NumberTitle', 'off', ...
+             'Position', [80 80 1200 900]);
+
+% =========================================================================
+% PANEL 1 — Y-Z face-on
+% Zoomed to the constellation extent, no solar disk or envelope clutter.
+% =========================================================================
+ax1 = subplot(2, 2, 1);
 hold on;
 
 for p = 1:n_planes
@@ -37,154 +59,228 @@ for p = 1:n_planes
             dot_size, plane_colors(p,:), '.');
 end
 
-% Solar disk and footprint circles
-plot(solar_R * cos(theta_circle) / 1e3, ...
-     solar_R * sin(theta_circle) / 1e3, ...
-     'k--', 'LineWidth', 0.8);
-plot(R * cos(theta_circle) / 1e3, ...
-     R * sin(theta_circle) / 1e3, ...
-     'r-', 'LineWidth', 0.8);
-
 axis equal; grid on; box on;
 xlabel('Y (thousand km)');
 ylabel('Z (thousand km)');
-title('Face-on (Y-Z)');
+title('Face-on (Y–Z)', 'FontWeight', 'bold');
 
-% Plane legend
-legend_entries = arrayfun(@(p) sprintf('Plane %d  X=%.0fkm', p, ...
-                 params.X_planes_km(p)), 1:n_planes, ...
-                 'UniformOutput', false);
-legend_entries{end+1} = 'Solar disk';
-legend_entries{end+1} = 'Footprint';
-legend(legend_entries, 'FontSize', 7, 'Location', 'southoutside', ...
-       'NumColumns', 2);
+legend_entries = arrayfun(@(p) sprintf('Plane %d  (X = %.0f km)', p, ...
+                 params.X_planes_km(p)), 1:n_planes, 'UniformOutput', false);
+legend(legend_entries, 'FontSize', 7, 'Location', 'southoutside', 'NumColumns', 2);
 
-% -------------------------------------------------------------------------
-% PANEL 2 — X-Y side view
-% -------------------------------------------------------------------------
-ax2 = subplot(1, 4, 2);
+% =========================================================================
+% PANEL 2 — Solar disk: limb darkening-weighted coverage heatmap
+%
+% Rendering approach — two layers:
+%   Layer 1 (background): the solar disk itself, coloured by the bare limb
+%     darkening profile I(theta)/I(0) = 0.61 + 0.39*cos(theta).  This
+%     gives the sun a realistic warm-centre/cooler-limb appearance and
+%     provides intuitive context for the sail positions.  Space outside
+%     the disk is black.
+%   Layer 2 (sails): each sail's projected footprint is filled with the
+%     local LD value at that position, rendered with a red (high LD,
+%     centre) → blue (low LD, limb) colormap.  Sails near the centre are
+%     intrinsically more effective and appear red/hot; limb sails appear
+%     blue/cool.
+%
+% Colorbar scale runs from 0.61 (limb, least effective) to 1.00
+% (disk centre, most effective) — the true LD intensity values.
+% =========================================================================
+ax2 = subplot(2, 2, 2);
+hold on;
+
+% --- Grid in normalised solar-radii units ---
+n_grid = 200;
+r_norm = linspace(-1, 1, n_grid);
+[Ygrid, Zgrid] = meshgrid(r_norm, r_norm);
+Rgrid   = sqrt(Ygrid.^2 + Zgrid.^2);
+on_disk = Rgrid <= 1;
+
+% LD value at every grid cell
+cos_theta_grid = sqrt(max(1 - Rgrid.^2, 0));
+ld_map         = NaN(n_grid, n_grid);
+ld_map(on_disk) = 0.61 + 0.39 .* cos_theta_grid(on_disk);
+
+% --- Layer 1: solar disk background ---
+% Use a muted yellow-orange gradient (centre bright, limb darker) to
+% suggest the photosphere.  Rendered separately so the sail layer sits
+% on top with its own colormap.
+sun_bg = NaN(n_grid, n_grid, 3);
+sun_bg(:,:,1) = min(1.00,  0.90 + 0.10 .* cos_theta_grid) .* on_disk;  % R
+sun_bg(:,:,2) = min(1.00,  0.55 + 0.20 .* cos_theta_grid) .* on_disk;  % G
+sun_bg(:,:,3) = zeros(n_grid, n_grid) .* on_disk;                        % B
+sun_bg(repmat(~on_disk, [1 1 3])) = NaN;
+
+image(r_norm, r_norm, sun_bg, 'AlphaData', on_disk);
+set(ax2, 'Color', [0 0 0]);   % space is black
+
+% --- Layer 2: sail coverage, coloured by LD effectiveness ---
+% Build a mask of cells covered by at least one sail, and record the
+% LD value at each covered cell (invariant of sail count — we want to
+% show *where* on the disk shades are sitting and how effective those
+% positions are, not how many sails are stacked).
+sail_mask = false(n_grid, n_grid);
+PX = positions.PX;
+PY = positions.PY;
+PZ = positions.PZ;
+sail_r = params.sail_radius_km;
+
+for k = 1:numel(PX)
+    scale  = d_L1_sun / (d_L1_sun + PX(k));
+    y_proj = PY(k) * scale / solar_R;
+    z_proj = PZ(k) * scale / solar_R;
+    r_proj = sail_r * scale / solar_R;
+
+    dist2     = (Ygrid - y_proj).^2 + (Zgrid - z_proj).^2;
+    sail_mask = sail_mask | (dist2 <= r_proj^2 & on_disk);
+end
+
+% Render covered cells using LD value; uncovered cells transparent
+sail_ld = ld_map;
+sail_ld(~sail_mask) = NaN;
+
+% --- Custom colormap: red (LD=1.00, centre, most effective) →
+%                      yellow (LD=0.61, limb, least effective) ---
+% At the limb, sails visually merge with the yellow sun background —
+% reinforcing that they contribute little extra.  At the centre, vivid
+% red stands out sharply, flagging high-value positions.
+n_cm   = 256;
+t      = linspace(0, 1, n_cm)';   % 0 = low LD (limb, yellow), 1 = high LD (centre, red)
+cmap_r = ones(n_cm, 1);                        % R always 1
+cmap_g = 0.85 - 0.85 .* t;                    % G: 0.85 (yellow) → 0 (red)
+cmap_b = zeros(n_cm, 1);                       % B always 0
+cmap_sail = max(0, min(1, [cmap_r, cmap_g, cmap_b]));
+
+imagesc(r_norm, r_norm, sail_ld, 'AlphaData', sail_mask);
+colormap(ax2, cmap_sail);
+cb = colorbar;
+cb.Label.String = 'I(\theta)/I(0) = a_0 + a_1·cos\theta   [a_0=0.61, a_1=0.39]';
+cb.FontSize      = 7;
+clim([0.61 1.00]);
+cb.Ticks      = [0.61, 0.61+0.39/2, 1.00];
+cb.TickLabels = {'a_0 = 0.61  (limb)', ...
+                 'a_0 + a_1/2 = 0.805', ...
+                 'a_0 + a_1 = 1.00  (centre)'};
+
+% Solar disk outline only (no footprint ring)
+plot(cos(theta_circle), sin(theta_circle), 'w-', 'LineWidth', 0.8);
+
+axis equal; axis([-1.1 1.1 -1.1 1.1]); box on;
+set(ax2, 'XTick', [-1 -0.5 0 0.5 1], 'YTick', [-1 -0.5 0 0.5 1]);
+xlabel('Y  (solar radii)');
+ylabel('Z  (solar radii)');
+title('Solar disk: limb darkening-weighted coverage', 'FontWeight', 'bold');
+
+% =========================================================================
+% PANEL 3 — 3-D scatter
+% Full spatial distribution; coloured by plane.
+% =========================================================================
+ax3 = subplot(2, 2, 3);
 hold on;
 
 for p = 1:n_planes
     idx = positions.plane_id == p;
-    scatter(positions.PX(idx) / 1e3, positions.PY(idx) / 1e3, ...
-            dot_size, plane_colors(p,:), '.');
-end
-
-% Mark plane positions
-for p = 1:n_planes
-    xline(params.X_planes_km(p) / 1e3, '--', ...
-          'Color', plane_colors(p,:), 'LineWidth', 0.8);
+    scatter3(positions.PX(idx) / 1e3, ...
+             positions.PY(idx) / 1e3, ...
+             positions.PZ(idx) / 1e3, ...
+             dot_size, plane_colors(p,:), '.');
 end
 
 grid on; box on;
 xlabel('X from L1 (thousand km)');
 ylabel('Y (thousand km)');
-title('Side view (X-Y)');
+zlabel('Z (thousand km)');
+title('3-D distribution', 'FontWeight', 'bold');
+view(-35, 25);
 
-% -------------------------------------------------------------------------
-% PANEL 3 — X-Z side view
-% -------------------------------------------------------------------------
-ax3 = subplot(1, 4, 3);
-hold on;
+legend_entries3 = arrayfun(@(p) sprintf('Plane %d', p), ...
+                  1:n_planes, 'UniformOutput', false);
+legend(legend_entries3, 'FontSize', 7, 'Location', 'northeast');
 
-for p = 1:n_planes
-    idx = positions.plane_id == p;
-    scatter(positions.PX(idx) / 1e3, positions.PZ(idx) / 1e3, ...
-            dot_size, plane_colors(p,:), '.');
-end
-
-for p = 1:n_planes
-    xline(params.X_planes_km(p) / 1e3, '--', ...
-          'Color', plane_colors(p,:), 'LineWidth', 0.8);
-end
-
-% For polar: mark Z center offset
-if strcmp(params.pattern, 'polar')
-    switch params.hemisphere
-        case {'north', 'both'}
-            yline(params.Z_center_km / 1e3, 'k:', 'LineWidth', 1);
-        case {'south', 'both'}
-            yline(-params.Z_center_km / 1e3, 'k:', 'LineWidth', 1);
-    end
-    if strcmp(params.hemisphere, 'both')
-        yline( params.Z_center_km / 1e3, 'k:', 'LineWidth', 1);
-        yline(-params.Z_center_km / 1e3, 'k:', 'LineWidth', 1);
-    end
-end
-
-grid on; box on;
-xlabel('X from L1 (thousand km)');
-ylabel('Z (thousand km)');
-title('Side view (X-Z)');
-
-% -------------------------------------------------------------------------
-% PANEL 4 — Stats
-% -------------------------------------------------------------------------
-subplot(1, 4, 4);
+% =========================================================================
+% PANEL 4 — Condensed stats
+% =========================================================================
+subplot(2, 2, 4);
 axis off;
 
-% Build stats text
-lines_text = {};
-lines_text{end+1} = sprintf('\\bfConstellation summary\\rm');
-lines_text{end+1} = ' ';
-lines_text{end+1} = sprintf('Pattern         %s', params.pattern);
-lines_text{end+1} = sprintf('Total craft     %d', params.N);
-lines_text{end+1} = sprintf('Planes          %d', params.n_planes);
-lines_text{end+1} = sprintf('Plane spacing   %.0f km', params.plane_spacing_km);
-lines_text{end+1} = ' ';
-lines_text{end+1} = sprintf('Footprint');
-lines_text{end+1} = sprintf('  Profile       %s', params.footprint_profile);
-lines_text{end+1} = sprintf('  Radius        %.0f km', R);
-lines_text{end+1} = sprintf('  Solar disk    %.0f km', solar_R);
-lines_text{end+1} = sprintf('  Coverage      %.0f%%', params.footprint_pct_of_disk);
+% --- Derived numbers ---
+disk_area = pi * solar_R^2;
+foot_area = pi * R^2;
+area_pct  = min(foot_area / disk_area * 100, 100);
+
+% Per-sail limb darkening weight (radial position on projected disk)
+r_on_disk = sqrt(positions.PY.^2 + positions.PZ.^2) / solar_R;
+r_on_disk = min(r_on_disk, 1);
+ld_w      = 0.61 + 0.39 .* sqrt(max(1 - r_on_disk.^2, 0));
+mean_ld   = mean(ld_w);
+
+% --- Text block ---
+L = {};
+L{end+1} = '\bfConstellation summary\rm';
+L{end+1} = ' ';
+if isfield(params, 'output_filename')
+    [~, fname, fext] = fileparts(params.output_filename);
+    L{end+1} = 'Source';
+    L{end+1} = sprintf('  %s', [fname, fext]);
+end
+L{end+1} = sprintf('Pattern        %s',              params.pattern);
+L{end+1} = sprintf('Craft          %d  (%d planes)', params.N, params.n_planes);
+L{end+1} = sprintf('Plane spacing  %.0f km',         params.plane_spacing_km);
+L{end+1} = ' ';
+L{end+1} = '\bfFootprint\rm';
+L{end+1} = sprintf('  Profile      %s',              params.footprint_profile);
+L{end+1} = sprintf('  Radius       %.0f km  (%.0f%% of disk area)', R, area_pct);
 if strcmp(params.footprint_profile, 'gaussian')
-    lines_text{end+1} = sprintf('  Sigma         %.0f km', params.footprint_sigma_km);
+    L{end+1} = sprintf('  Sigma        %.0f km',     params.footprint_sigma_km);
 end
-lines_text{end+1} = ' ';
-lines_text{end+1} = sprintf('Sail radius     %.0f km', params.sail_radius_km);
-lines_text{end+1} = sprintf('Min buffer      %.0f km', params.min_buffer_km);
-lines_text{end+1} = ' ';
-
-% Plane breakdown
-lines_text{end+1} = sprintf('Craft per plane');
-for p = 1:n_planes
-    lines_text{end+1} = sprintf('  Plane %d  X=%.0f km  N=%d', ...
-                                  p, params.X_planes_km(p), params.N_per_plane(p));
-end
-
-% Polar-specific
+L{end+1} = sprintf('  Coverage     %.0f%%',          params.footprint_pct_of_disk);
+L{end+1} = ' ';
+L{end+1} = '\bfLimb darkening effectiveness\rm';
+L{end+1} = sprintf('  Mean LD wt   %.3f  (1.000 = disk centre)', mean_ld);
+L{end+1} = sprintf('  Sail radius  %.0f km',         params.sail_radius_km);
 if strcmp(params.pattern, 'polar')
-    lines_text{end+1} = ' ';
-    lines_text{end+1} = sprintf('Polar targeting');
-    lines_text{end+1} = sprintf('  Fraction      %.0f%%', ...
-                                  params.polar_fraction * 100);
-    lines_text{end+1} = sprintf('  Target lat    %.1f deg (%s)', ...
-                                  params.target_latitude_deg, params.hemisphere);
-    lines_text{end+1} = sprintf('  Band width    %.1f deg', ...
-                                  params.latitude_band_width_deg);
-    lines_text{end+1} = sprintf('  Z center      %.1f km', params.Z_center_km);
+    L{end+1} = ' ';
+    L{end+1} = '\bfPolar targeting\rm';
+    L{end+1} = sprintf('  Fraction     %.0f%%',      params.polar_fraction * 100);
+    L{end+1} = sprintf('  Target lat   %.1f deg (%s)', ...
+                         params.target_latitude_deg, params.hemisphere);
+    L{end+1} = sprintf('  Band width   %.1f deg',    params.latitude_band_width_deg);
+    L{end+1} = sprintf('  Z centre     %.0f km',     params.Z_center_km);
 end
+L{end+1} = ' ';
+buf_idx   = numel(L) + 1;
+L{end+1}  = '';    % placeholder — buffer line rendered separately below
+L{end+1} = ' ';
+L{end+1} = sprintf('Generated  %s', datestr(now, 'yyyy-mm-dd HH:MM'));
 
-% Date
-lines_text{end+1} = ' ';
-lines_text{end+1} = sprintf('Generated  %s', datestr(now, 'yyyy-mm-dd HH:MM'));
-
-% Render as evenly spaced text
-n_lines   = numel(lines_text);
+n_lines   = numel(L);
 y_spacing = 1 / (n_lines + 1);
+
 for i = 1:n_lines
-    text(0.05, 1 - i * y_spacing, lines_text{i}, ...
-         'Units', 'normalized', ...
-         'FontSize', 8, ...
-         'FontName', 'Courier', ...
-         'Interpreter', 'tex', ...
+    if i == buf_idx; continue; end   % rendered separately
+    text(0.04, 1 - i * y_spacing, L{i}, ...
+         'Units',            'normalized', ...
+         'FontSize',         8.5, ...
+         'FontName',         'Courier', ...
+         'Interpreter',      'tex', ...
          'VerticalAlignment', 'middle');
 end
 
-% -------------------------------------------------------------------------
-% LINK X AXES of side views so they zoom together
-% -------------------------------------------------------------------------
-linkaxes([ax2 ax3], 'x');
+% --- Buffer line — two calls at fixed x positions; violation count red if > 0 ---
+buf_y = 1 - buf_idx * y_spacing;
+if violations == 0
+    viol_str   = '(0 violations)';
+    viol_color = [0 0 0];
+else
+    viol_str   = sprintf('(%d violations)', violations);
+    viol_color = [0.85 0 0];
+end
+text(0.04, buf_y, sprintf('Buffer    %.0f km', params.min_buffer_km), ...
+     'Units', 'normalized', 'FontSize', 8.5, 'FontName', 'Courier', ...
+     'Interpreter', 'none', 'VerticalAlignment', 'middle');
+text(0.55, buf_y, viol_str, ...
+     'Units', 'normalized', 'FontSize', 8.5, 'FontName', 'Courier', ...
+     'Interpreter', 'none', 'VerticalAlignment', 'middle', ...
+     'Color', viol_color);
 
 end
