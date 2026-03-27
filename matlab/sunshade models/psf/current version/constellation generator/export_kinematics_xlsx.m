@@ -28,9 +28,13 @@ function filepath = export_kinematics_xlsx(positions, params, excel_folder)
 % -------------------------------------------------------------------------
 % BUILD FILENAME
 % -------------------------------------------------------------------------
-date_str  = datestr(now, 'yyyy-mm-dd');
-filename  = sprintf('constellation_%s_%dcrafts_%s.xlsx', ...
-                     params.pattern, params.N, date_str);
+if isfield(params, 'output_filename') && ~isempty(params.output_filename)
+    filename = params.output_filename;
+else
+    date_str  = datestr(now, 'yyyy-mm-dd');
+    filename  = sprintf('constellation_%s_%dcrafts_%s.xlsx', ...
+                         params.pattern, params.N, date_str);
+end
 filepath  = fullfile(excel_folder, filename);
 
 fprintf('[export] Writing %d spacecraft to:\n  %s\n', params.N, filepath);
@@ -57,6 +61,15 @@ T = array2table(data, 'VariableNames', header);
 % range reader. They document the constellation for human readers of the
 % Excel file.
 
+if strcmp(params.pattern, 'uniform')
+    footprint_line = sprintf('Footprint:  %.0f km radius  (%.0f%% of solar disk)', ...
+                             params.constellation_radius_km, ...
+                             params.footprint_pct_of_disk);
+else
+    footprint_line = sprintf('Footprint:  polar ellipses Y %.0f km, Z %.0f km', ...
+                             params.polar_radius_y_km, params.polar_radius_z_km);
+end
+
 meta = { ...
     'PSF Constellation Generator — heliogyro kinematics data', '', '', '', '', '';
     sprintf('Generated:  %s', datestr(now, 'yyyy-mm-dd HH:MM:SS')),  '', '', '', '', '';
@@ -64,9 +77,7 @@ meta = { ...
     sprintf('N craft:    %d', params.N),                              '', '', '', '', '';
     sprintf('N planes:   %d  (spacing: %.0f km)', ...
              params.n_planes, params.plane_spacing_km),               '', '', '', '', '';
-    sprintf('Footprint:  %.0f km radius  (%.0f%% of solar disk)', ...
-             params.constellation_radius_km, ...
-             params.footprint_pct_of_disk),                           '', '', '', '', '';
+    footprint_line,                                                   '', '', '', '', '';
     sprintf('Profile:    %s', params.footprint_profile),              '', '', '', '', '';
     sprintf('Sail radius: %.0f km  (min buffer: %.0f km)', ...
              params.sail_radius_km, params.min_buffer_km),            '', '', '', '', '';
@@ -116,14 +127,15 @@ if strcmp(params.pattern, 'polar')
     polar_meta = { ...
         '', '', '', '', '', '';
         sprintf('Polar targeting:'), '', '', '', '', '';
-        sprintf('  Target latitude:   %.1f deg (%s)', ...
-                 params.target_latitude_deg, params.hemisphere), '', '', '', '', '';
-        sprintf('  Band width:        %.1f deg (1-sigma)', ...
-                 params.latitude_band_width_deg),                '', '', '', '', '';
+        sprintf('  Polar center Z:    %.1f km (%s)', ...
+                 params.polar_center_z_km, params.hemisphere), '', '', '', '', '';
         sprintf('  Polar fraction:    %.0f%%', ...
                  params.polar_fraction * 100),                   '', '', '', '', '';
         sprintf('  Z center offset:   %.1f km', ...
-                 params.Z_center_km),                            '', '', '', '', '';
+                 params.polar_center_z_km),                      '', '', '', '', '';
+        sprintf('  Ellipse axes:      Y %.1f km, Z %.1f km', ...
+                 params.polar_radius_y_km, ...
+                 params.polar_radius_z_km),                      '', '', '', '', '';
     };
 
     % Append after data block

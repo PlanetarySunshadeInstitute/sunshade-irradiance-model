@@ -98,6 +98,9 @@ switch true
 		central_col     = ceil(size(results, 2) / 2);
 		central_strip   = results(:, central_col);
 		mean_irradiance = sum(central_strip .* weights');
+		% Diagnostic: show which constellation Excel input was used.
+		excel_file       = location_Heliogyro_Kinematics_Data___E___Sr;
+		fprintf('\nConstellation input: %s\n', excel_file.name);
 		fprintf('\nArea-weighted mean %s: %.4f\n\n', model_parameters.analysis_type, mean_irradiance);
 
 

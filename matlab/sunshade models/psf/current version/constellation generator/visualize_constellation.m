@@ -36,7 +36,11 @@ plane_colors = lines(n_planes);
 dot_size     = 2;
 
 theta_circle = linspace(0, 2*pi, 300);
-R            = params.constellation_radius_km;
+if strcmp(params.pattern, 'polar')
+    R = max(params.polar_radius_y_km, params.polar_radius_z_km);
+else
+    R = params.constellation_radius_km;
+end
 solar_R      = params.solar_disk_radius_km;
 
 % L1-to-Sun distance (km) — used for solar disk projection only
@@ -214,6 +218,17 @@ r_on_disk = min(r_on_disk, 1);
 ld_w      = 0.61 + 0.39 .* sqrt(max(1 - r_on_disk.^2, 0));
 mean_ld   = mean(ld_w);
 
+% Radial diagnostics in footprint-normalized units (helps compare profiles)
+r_norm_fp = sqrt(positions.PY.^2 + positions.PZ.^2) / max(R, eps);
+r_norm_fp = min(r_norm_fp, 1);
+r_pct     = prctile(r_norm_fp, [50 80 95]);
+
+% Hemisphere diagnostics
+n_north = sum(positions.PZ >= 0);
+n_south = sum(positions.PZ < 0);
+p_north = 100 * n_north / max(params.N, 1);
+p_south = 100 * n_south / max(params.N, 1);
+
 % --- Text block ---
 L = {};
 L{end+1} = '\bfConstellation summary\rm';
@@ -229,23 +244,33 @@ L{end+1} = sprintf('Plane spacing  %.0f km',         params.plane_spacing_km);
 L{end+1} = ' ';
 L{end+1} = '\bfFootprint\rm';
 L{end+1} = sprintf('  Profile      %s',              params.footprint_profile);
-L{end+1} = sprintf('  Radius       %.0f km  (%.0f%% of disk area)', R, area_pct);
+if strcmp(params.pattern, 'polar')
+    L{end+1} = sprintf('  Polar ellipses  Y %.0f km, Z %.0f km', ...
+                       params.polar_radius_y_km, params.polar_radius_z_km);
+else
+    L{end+1} = sprintf('  Radius       %.0f km  (%.0f%% of disk area)', R, area_pct);
+end
 if strcmp(params.footprint_profile, 'gaussian')
     L{end+1} = sprintf('  Sigma        %.0f km',     params.footprint_sigma_km);
 end
-L{end+1} = sprintf('  Coverage     %.0f%%',          params.footprint_pct_of_disk);
+if strcmp(params.pattern, 'uniform')
+    L{end+1} = sprintf('  Coverage     %.0f%%',          params.footprint_pct_of_disk);
+end
+L{end+1} = sprintf('  r/R p50,p80,p95  %.2f, %.2f, %.2f', ...
+                   r_pct(1), r_pct(2), r_pct(3));
 L{end+1} = ' ';
 L{end+1} = '\bfLimb darkening effectiveness\rm';
 L{end+1} = sprintf('  Mean LD wt   %.3f  (1.000 = disk centre)', mean_ld);
 L{end+1} = sprintf('  Sail radius  %.0f km',         params.sail_radius_km);
+L{end+1} = sprintf('  North/South  %.1f%% / %.1f%%', p_north, p_south);
 if strcmp(params.pattern, 'polar')
     L{end+1} = ' ';
     L{end+1} = '\bfPolar targeting\rm';
     L{end+1} = sprintf('  Fraction     %.0f%%',      params.polar_fraction * 100);
-    L{end+1} = sprintf('  Target lat   %.1f deg (%s)', ...
-                         params.target_latitude_deg, params.hemisphere);
-    L{end+1} = sprintf('  Band width   %.1f deg',    params.latitude_band_width_deg);
-    L{end+1} = sprintf('  Z centre     %.0f km',     params.Z_center_km);
+    L{end+1} = sprintf('  Base layer   %d craft (%.1f%%)', ...
+                       params.N_uniform, 100 * params.N_uniform / max(params.N, 1));
+    L{end+1} = sprintf('  Center Z     %.0f km (%s)', ...
+                         params.polar_center_z_km, params.hemisphere);
 end
 L{end+1} = ' ';
 buf_idx   = numel(L) + 1;

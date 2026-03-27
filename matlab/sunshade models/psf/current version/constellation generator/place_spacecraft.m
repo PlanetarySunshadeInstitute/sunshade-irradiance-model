@@ -7,10 +7,8 @@
 % USAGE
 %   positions = place_spacecraft(params, envelope)
 %
-% The constellation footprint (constellation_radius_km) is the primary
-% size constraint — it defines the circle in the Y-Z plane within which
-% craft are placed. This should be <= solar_disk_radius_km (10,980 km)
-% for sails to actually intercept sunlight.
+% For uniform mode, constellation_radius_km is the primary size constraint
+% (circle in Y-Z). For polar mode, craft are placed in per-pole ellipses.
 %
 % The Glasgow envelope is a secondary constraint — it defines where craft
 % CAN go from a propulsion standpoint. At the optimal zone the envelope
@@ -46,23 +44,25 @@ for p = 1:params.n_planes
     a_env = max(a_env, 1);
     b_env = max(b_env, 1);
 
-    % Primary footprint constraint: circle of constellation_radius_km
-    % We pass both to the pattern functions — placement must satisfy both
-    R = params.constellation_radius_km;
-
     switch params.pattern
         case 'uniform'
+            R = params.constellation_radius_km;
             [Y, Z] = pattern_uniform(N_plane, R, a_env, b_env, ...
                                      envelope.safety_margin, params);
+            [Y, Z, n_v] = enforce_min_buffer_uniform(Y, Z, R, ...
+                                     params.min_buffer_km, a_env, b_env, ...
+                                     envelope.safety_margin, params);
         case 'polar'
-            [Y, Z] = pattern_polar(N_plane, R, a_env, b_env, ...
-                                    envelope.safety_margin, params);
+            [Y, Z] = pattern_polar(N_plane, a_env, b_env, ...
+                                    envelope.safety_margin, params, p);
+            [Y, Z, n_v] = enforce_min_buffer_polar(Y, Z, ...
+                                     params.min_buffer_km, a_env, b_env, ...
+                                     envelope.safety_margin, params);
         otherwise
             error('[place] Unknown pattern: "%s"', params.pattern);
     end
 
     % Enforce minimum separation within this plane
-    [Y, Z, n_v] = enforce_min_buffer(Y, Z, R, params.min_buffer_km);
     n_violations = n_violations + n_v;
 
     idx           = cursor : cursor + N_plane - 1;
@@ -152,74 +152,61 @@ end
 %  PATTERN: POLAR
 % =========================================================================
 
-function [Y, Z] = pattern_polar(N, R, a_env, b_env, safety_margin, params)
+function [Y, Z] = pattern_polar(N, a_env, b_env, safety_margin, params, plane_idx)
 % PATTERN_POLAR
 %
-% Base layer: floor(N * (1-polar_fraction)) craft placed uniformly.
-% Targeting layer: remainder placed with Gaussian Z-weighting.
-% Split is computed locally from the plane's N, not the global N.
+% If explicit north/south per-plane counts are provided, use ellipses-only
+% and place exact counts for this plane. Otherwise fall back to the legacy
+% polar_fraction + hemisphere mix.
+use_explicit_polar = isfield(params, 'polar_N_north_per_plane') && ...
+                     isfield(params, 'polar_N_south_per_plane') && ...
+                     numel(params.polar_N_north_per_plane) >= plane_idx && ...
+                     numel(params.polar_N_south_per_plane) >= plane_idx;
 
-% Compute local split from this plane's N
-N_uniform  = round(N * (1 - params.polar_fraction));
-N_targeted = N - N_uniform;
+if use_explicit_polar
+    N_north = params.polar_N_north_per_plane(plane_idx);
+    N_south = params.polar_N_south_per_plane(plane_idx);
 
-% Base layer
-[Y_u, Z_u] = pattern_uniform(N_uniform, R, a_env, b_env, safety_margin, params);
+    [Y_n, Z_n] = sample_polar_ellipse_points(N_north, +params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
+    [Y_s, Z_s] = sample_polar_ellipse_points(N_south, -params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
 
-% Targeting layer
-Y_t = zeros(N_targeted, 1);
-Z_t = zeros(N_targeted, 1);
+    Y = [Y_n; Y_s];
+    Z = [Z_n; Z_s];
+else
+    % Legacy behavior: mix uniform footprint with per-pole ellipse targeting
+    % via polar_fraction + hemisphere.
+    N_uniform  = round(N * (1 - params.polar_fraction));
+    N_targeted = N - N_uniform;
 
-switch params.hemisphere
-    case 'north'
-        Z_centers = params.Z_center_km;
-        N_splits  = N_targeted;
-    case 'south'
-        Z_centers = -params.Z_center_km;
-        N_splits  = N_targeted;
-    case 'both'
-        Z_centers = [ params.Z_center_km, -params.Z_center_km];
-        N_splits  = [floor(N_targeted/2), N_targeted - floor(N_targeted/2)];
-end
+    R = params.constellation_radius_km;
+    [Y_u, Z_u] = pattern_uniform(N_uniform, R, a_env, b_env, safety_margin, params);
 
-cursor = 1;
-for h = 1:numel(Z_centers)
-
-    Zc    = Z_centers(h);
-    Ns    = N_splits(h);
-    sigma = params.Z_sigma_km;
-
-    Y_h    = zeros(Ns, 1);
-    Z_h    = zeros(Ns, 1);
-    filled = 0;
-    batch  = ceil(Ns * 3);
-
-    while filled < Ns
-        Z_c          = Zc + sigma * randn(batch, 1);
-        max_Y_at_Z   = sqrt(max(0, R^2 - Z_c.^2));
-        in_footprint = max_Y_at_Z > 0;
-        Z_c          = Z_c(in_footprint);
-        max_Y_at_Z   = max_Y_at_Z(in_footprint);
-        if isempty(Z_c); continue; end
-
-        Y_c    = (2 * rand(numel(Z_c), 1) - 1) .* max_Y_at_Z;
-        in_env = (Y_c / a_env).^2 + (Z_c / b_env).^2 <= safety_margin;
-        Y_c    = Y_c(in_env);
-        Z_c    = Z_c(in_env);
-
-        n_take = min(Ns - filled, numel(Z_c));
-        Y_h(filled+1:filled+n_take) = Y_c(1:n_take);
-        Z_h(filled+1:filled+n_take) = Z_c(1:n_take);
-        filled = filled + n_take;
+    switch params.hemisphere
+        case 'north'
+            N_north = N_targeted;
+            N_south = 0;
+            [Y_u, Z_u] = keep_sign_and_refill_uniform(Y_u, Z_u, N_uniform, +1, ...
+                                    R, a_env, b_env, safety_margin, params);
+        case 'south'
+            N_north = 0;
+            N_south = N_targeted;
+            [Y_u, Z_u] = keep_sign_and_refill_uniform(Y_u, Z_u, N_uniform, -1, ...
+                                    R, a_env, b_env, safety_margin, params);
+        case 'both'
+            N_north = ceil(N_targeted / 2);   % odd extra goes north
+            N_south = N_targeted - N_north;
     end
 
-    Y_t(cursor:cursor+Ns-1) = Y_h;
-    Z_t(cursor:cursor+Ns-1) = Z_h;
-    cursor = cursor + Ns;
-end
+    [Y_n, Z_n] = sample_polar_ellipse_points(N_north, +params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
+    [Y_s, Z_s] = sample_polar_ellipse_points(N_south, -params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
 
-Y = [Y_u; Y_t];
-Z = [Z_u; Z_t];
+    Y = [Y_u; Y_n; Y_s];
+    Z = [Z_u; Z_n; Z_s];
+end
 
 % Final size guard — should never trigger, but catches any off-by-one
 if numel(Y) ~= N
@@ -227,13 +214,82 @@ if numel(Y) ~= N
           numel(Y), N);
 end
 
+function [Y_out, Z_out] = keep_sign_and_refill_uniform(Y_in, Z_in, N, sign_keep, ...
+                                              R, a_env, b_env, safety_margin, params)
+if N == 0
+    Y_out = zeros(0, 1);
+    Z_out = zeros(0, 1);
+    return;
+end
+
+if sign_keep > 0
+    keep = Z_in >= 0;
+else
+    keep = Z_in <= 0;
+end
+Y_out = Y_in(keep);
+Z_out = Z_in(keep);
+filled = numel(Y_out);
+
+if filled >= N
+    Y_out = Y_out(1:N);
+    Z_out = Z_out(1:N);
+    return;
+end
+
+batch = max(64, ceil((N - filled) * 3));
+while filled < N
+    [Y_c, Z_c] = sample_footprint_batch(batch, R, a_env, b_env, ...
+                                        safety_margin, params);
+    if sign_keep > 0
+        keep = Z_c >= 0;
+    else
+        keep = Z_c <= 0;
+    end
+    Y_c = Y_c(keep);
+    Z_c = Z_c(keep);
+    if isempty(Y_c); continue; end
+
+    n_take = min(N - filled, numel(Y_c));
+    Y_out(filled+1:filled+n_take, 1) = Y_c(1:n_take);
+    Z_out(filled+1:filled+n_take, 1) = Z_c(1:n_take);
+    filled = filled + n_take;
+end
+end
+
+end
+
+function [Y, Z] = sample_polar_ellipse_points(N, Zc, a_env, b_env, ...
+                                              safety_margin, params)
+if N == 0
+    Y = zeros(0, 1);
+    Z = zeros(0, 1);
+    return;
+end
+
+Y = zeros(N, 1);
+Z = zeros(N, 1);
+filled = 0;
+batch = max(64, ceil(N * 2));
+
+while filled < N
+    [Y_c, Z_c] = sample_polar_ellipse_batch(batch, Zc, a_env, b_env, ...
+                                            safety_margin, params);
+    if isempty(Y_c); continue; end
+    n_take = min(N - filled, numel(Y_c));
+    Y(filled+1:filled+n_take) = Y_c(1:n_take);
+    Z(filled+1:filled+n_take) = Z_c(1:n_take);
+    filled = filled + n_take;
+end
 end
 
 % =========================================================================
 %  HELPER: ENFORCE MINIMUM BUFFER (within a single plane, 3D-aware)
 % =========================================================================
 
-function [Y, Z, n_remain] = enforce_min_buffer(Y, Z, R, min_buffer_km)
+function [Y, Z, n_remain] = enforce_min_buffer_uniform(Y, Z, R, min_buffer_km, ...
+                                               a_env, b_env, safety_margin, ...
+                                               params)
 % ENFORCE_MIN_BUFFER
 %
 % Finds craft pairs closer than min_buffer_km and re-draws the offending
@@ -263,11 +319,8 @@ for attempt = 1:max_attempts
     Z_new  = zeros(n_v, 1);
 
     while filled < n_v
-        Y_c    = (2 * rand(batch, 1) - 1) * R;
-        Z_c    = (2 * rand(batch, 1) - 1) * R;
-        keep   = Y_c.^2 + Z_c.^2 <= R^2;
-        Y_c    = Y_c(keep);
-        Z_c    = Z_c(keep);
+        [Y_c, Z_c] = sample_footprint_batch(batch, R, a_env, b_env, ...
+                                            safety_margin, params);
         n_take = min(n_v - filled, numel(Y_c));
         Y_new(filled+1:filled+n_take) = Y_c(1:n_take);
         Z_new(filled+1:filled+n_take) = Z_c(1:n_take);
@@ -299,7 +352,144 @@ if n_remain > 0
              'increase min_buffer_km / reduce sail_radius_km.'], ...
              n_remain, min_buffer_km, max_attempts, min_sep, min_buffer_km);
 end
+end
 
+function [Y, Z, n_remain] = enforce_min_buffer_polar(Y, Z, min_buffer_km, ...
+                                               a_env, b_env, safety_margin, ...
+                                               params)
+max_attempts = 50;
+N = numel(Y);
+
+for attempt = 1:max_attempts
+
+    dY           = Y - Y';
+    dZ           = Z - Z';
+    D            = sqrt(dY.^2 + dZ.^2);
+    D(1:N+1:end) = Inf;
+
+    violators = find(any(D < min_buffer_km, 2));
+    if isempty(violators); n_remain = 0; return; end
+
+    n_v    = numel(violators);
+    filled = 0;
+    batch  = ceil(n_v * 2);
+    Y_new  = zeros(n_v, 1);
+    Z_new  = zeros(n_v, 1);
+
+use_explicit = isfield(params, 'polar_N_north_per_plane');
+
+if strcmp(params.hemisphere, 'both') || use_explicit
+    % Preserve north/south identity: resample each violator
+    % back into whichever ellipse it originally came from.
+    idx_n = find(Z(violators) >= 0);
+    idx_s = find(Z(violators) <  0);
+
+    [Y_n, Z_n] = sample_polar_ellipse_points(numel(idx_n), +params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
+    [Y_s, Z_s] = sample_polar_ellipse_points(numel(idx_s), -params.polar_center_z_km, ...
+                                             a_env, b_env, safety_margin, params);
+    Y_new(idx_n) = Y_n;  Z_new(idx_n) = Z_n;
+    Y_new(idx_s) = Y_s;  Z_new(idx_s) = Z_s;
+else
+    % legacy single-hemisphere resampling
+    while filled < n_v
+        ...
+    end
+end
+
+    Y(violators) = Y_new;
+    Z(violators) = Z_new;
+end
+
+D_final              = sqrt((Y - Y').^2 + (Z - Z').^2);
+D_final(1:N+1:end)   = Inf;
+still_violating      = any(D_final < min_buffer_km, 2);
+n_remain             = sum(still_violating);
+
+if n_remain > 0
+    min_sep = min(D_final(D_final < min_buffer_km));
+    warning(['[place] PLACEMENT FAILURE: %d craft could not be placed within ' ...
+             'the minimum buffer of %.0f km after %d attempts.\n' ...
+             '         These craft are too close to a neighbor in the output ' ...
+             'file and should not be used.\n' ...
+             '         Closest violation: %.1f km (buffer requires %.0f km).\n' ...
+             '         Fix: increase max_attempts in enforce_min_buffer, or ' ...
+             'increase min_buffer_km / reduce sail_radius_km.'], ...
+             n_remain, min_buffer_km, max_attempts, min_sep, min_buffer_km);
+end
+end
+
+
+% =========================================================================
+%  HELPER: SAMPLE FOOTPRINT BATCH
+% =========================================================================
+
+function [Y_in, Z_in] = sample_footprint_batch(batch, R, a_env, b_env, ...
+                                               safety_margin, params)
+if strcmp(params.footprint_profile, 'gaussian')
+    sig = params.footprint_sigma_km;
+    Y_c = sig * randn(batch, 1);
+    Z_c = sig * randn(batch, 1);
+else
+    Y_c = (2 * rand(batch, 1) - 1) * R;
+    Z_c = (2 * rand(batch, 1) - 1) * R;
+end
+
+% In polar mode, keep re-sampling on the selected hemisphere so the
+% collision-resolution step cannot reintroduce opposite-side points.
+if strcmp(params.pattern, 'polar')
+    if strcmp(params.hemisphere, 'north')
+        keep_h = Z_c >= 0;
+        Y_c = Y_c(keep_h);
+        Z_c = Z_c(keep_h);
+    elseif strcmp(params.hemisphere, 'south')
+        keep_h = Z_c <= 0;
+        Y_c = Y_c(keep_h);
+        Z_c = Z_c(keep_h);
+    end
+end
+
+in_footprint = (Y_c.^2 + Z_c.^2) <= R^2;
+in_envelope  = (Y_c / a_env).^2 + (Z_c / b_env).^2 <= safety_margin;
+accept       = in_footprint & in_envelope;
+
+Y_in = Y_c(accept);
+Z_in = Z_c(accept);
+end
+
+function [Y_in, Z_in] = sample_polar_ellipse_batch(batch, Zc, a_env, b_env, ...
+                                                   safety_margin, params)
+% Area-preserving disk-to-ellipse sampling.
+theta = 2 * pi * rand(batch, 1);
+rho   = sqrt(rand(batch, 1));
+
+Y_c = params.polar_radius_y_km * rho .* cos(theta);
+Z_c = Zc + params.polar_radius_z_km * rho .* sin(theta);
+
+in_env = (Y_c / a_env).^2 + (Z_c / b_env).^2 <= safety_margin;
+Y_in   = Y_c(in_env);
+Z_in   = Z_c(in_env);
+end
+
+function [Y_in, Z_in] = sample_polar_resample_batch(batch, a_env, b_env, ...
+                                                    safety_margin, params)
+switch params.hemisphere
+    case 'north'
+        [Y_in, Z_in] = sample_polar_ellipse_batch(batch, +params.polar_center_z_km, ...
+                                                  a_env, b_env, safety_margin, params);
+    case 'south'
+        [Y_in, Z_in] = sample_polar_ellipse_batch(batch, -params.polar_center_z_km, ...
+                                                  a_env, b_env, safety_margin, params);
+    case 'both'
+        n_north = ceil(batch / 2);
+        n_south = batch - n_north;
+        [Y_n, Z_n] = sample_polar_ellipse_batch(n_north, +params.polar_center_z_km, ...
+                                                a_env, b_env, safety_margin, params);
+        [Y_s, Z_s] = sample_polar_ellipse_batch(n_south, -params.polar_center_z_km, ...
+                                                a_env, b_env, safety_margin, params);
+        Y_in = [Y_n; Y_s];
+        Z_in = [Z_n; Z_s];
+end
 end
 
 

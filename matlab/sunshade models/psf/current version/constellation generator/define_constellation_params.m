@@ -11,7 +11,7 @@
 %
 % PATTERN OPTIONS (build incrementally — others added as developed)
 %   'uniform'  : even fill across the ellipse envelope
-%   'polar'    : uniform base layer + Gaussian targeting toward a latitude
+%   'polar'    : two polar ellipses centered at +/- user-specified Z
 %
 % COORDINATE CONVENTION
 %   All positions are L1-centred synodic km (see preprocess_glasgow_data.m).
@@ -61,9 +61,16 @@ d.min_buffer_km            = 100;     % minimum edge-to-edge clearance (km)
 
 % --- Polar pattern (ignored for 'uniform') ---
 d.polar_fraction              = 0.33;
-d.target_latitude_deg         = 60;
-d.latitude_band_width_deg     = 20;
+d.polar_center_z_km           = 6200;
 d.hemisphere                  = 'both';
+d.polar_radius_y_km           = 2000;
+d.polar_radius_z_km           = 1000;
+
+% Explicit north/south ellipse counts (new interface; optional)
+% If provided (both non-NaN), the polar pattern will place ellipses-only
+% craft with exact north/south counts and will derive hemisphere internally.
+d.polar_N_north               = NaN;
+d.polar_N_south                = NaN;
 
 % -------------------------------------------------------------------------
 % KNOWN FIELDS
@@ -72,8 +79,11 @@ known_fields = { ...
     'pattern', 'N', 'n_planes', 'plane_spacing_km', ...
     'constellation_radius_km', 'footprint_profile', 'footprint_sigma_fraction', ...
     'sail_radius_km', 'min_buffer_km', ...
-    'polar_fraction', 'target_latitude_deg', ...
-    'latitude_band_width_deg', 'hemisphere' };
+    'polar_fraction', 'polar_center_z_km', ...
+    'hemisphere', ...
+    'polar_radius_y_km', 'polar_radius_z_km' };
+
+known_fields = [known_fields, {'polar_N_north', 'polar_N_south'}];
 
 % -------------------------------------------------------------------------
 % MERGE USER INPUT OVER DEFAULTS
@@ -128,17 +138,9 @@ if ~isnumeric(params.polar_fraction) || ...
     errors{end+1} = 'polar_fraction must be in [0, 1]';
 end
 
-% target_latitude_deg
-if ~isnumeric(params.target_latitude_deg) || ...
-        abs(params.target_latitude_deg) > 90
-    errors{end+1} = 'target_latitude_deg must be in [-90, 90]';
-end
-
-% latitude_band_width_deg
-if ~isnumeric(params.latitude_band_width_deg) || ...
-        params.latitude_band_width_deg <= 0 || ...
-        params.latitude_band_width_deg > 90
-    errors{end+1} = 'latitude_band_width_deg must be in (0, 90]';
+% polar_center_z_km
+if ~isnumeric(params.polar_center_z_km) || params.polar_center_z_km < 0
+    errors{end+1} = 'polar_center_z_km must be a non-negative number';
 end
 
 % hemisphere
@@ -148,21 +150,45 @@ if ~ismember(params.hemisphere, valid_hemispheres)
                              strjoin(valid_hemispheres, ', '));
 end
 
+% polar_N_north / polar_N_south (optional explicit counts)
+if isfield(params, 'polar_N_north') && ~isnan(params.polar_N_north)
+    if ~isnumeric(params.polar_N_north) || params.polar_N_north < 0 || ...
+            params.polar_N_north ~= round(params.polar_N_north)
+        errors{end+1} = 'polar_N_north must be a non-negative integer (or NaN to ignore)';
+    end
+end
+if isfield(params, 'polar_N_south') && ~isnan(params.polar_N_south)
+    if ~isnumeric(params.polar_N_south) || params.polar_N_south < 0 || ...
+            params.polar_N_south ~= round(params.polar_N_south)
+        errors{end+1} = 'polar_N_south must be a non-negative integer (or NaN to ignore)';
+    end
+end
+
+% polar ellipse radii
+if ~isnumeric(params.polar_radius_y_km) || params.polar_radius_y_km <= 0
+    errors{end+1} = 'polar_radius_y_km must be a positive number';
+end
+if ~isnumeric(params.polar_radius_z_km) || params.polar_radius_z_km <= 0
+    errors{end+1} = 'polar_radius_z_km must be a positive number';
+end
+
 % Throw all errors at once so the user can fix everything in one pass
 if ~isempty(errors)
     msg = sprintf('  - %s\n', errors{:});
     error('[params] Invalid parameters:\n%s', msg);
 end
 
-% constellation_radius_km
-if ~isnumeric(params.constellation_radius_km) || ...
-        params.constellation_radius_km <= 0
-    errors{end+1} = 'constellation_radius_km must be a positive number';
-end
-if params.constellation_radius_km > SOLAR_DISK_RADIUS_KM
-    warning(['[params] constellation_radius_km (%.0f km) exceeds solar disk ' ...
-             'radius (%.0f km). Craft beyond the solar disk shade empty sky.'], ...
-             params.constellation_radius_km, SOLAR_DISK_RADIUS_KM);
+% constellation_radius_km (uniform mode only)
+if strcmp(params.pattern, 'uniform')
+    if ~isnumeric(params.constellation_radius_km) || ...
+            params.constellation_radius_km <= 0
+        errors{end+1} = 'constellation_radius_km must be a positive number';
+    end
+    if params.constellation_radius_km > SOLAR_DISK_RADIUS_KM
+        warning(['[params] constellation_radius_km (%.0f km) exceeds solar disk ' ...
+                 'radius (%.0f km). Craft beyond the solar disk shade empty sky.'], ...
+                 params.constellation_radius_km, SOLAR_DISK_RADIUS_KM);
+    end
 end
 
 % footprint_profile
@@ -202,27 +228,30 @@ end
 % Compute these once here so downstream modules don't repeat the geometry.
 
 % N per layer (polar only — ignored for uniform)
-params.N_uniform  = round(params.N * (1 - params.polar_fraction));
-params.N_targeted = params.N - params.N_uniform;
+use_polar_n_counts = isfield(params, 'polar_N_north') && isfield(params, 'polar_N_south') && ...
+                     ~isnan(params.polar_N_north) && ~isnan(params.polar_N_south);
 
-% Z center offset for target latitude, derived from shadow geometry:
-%   Z_craft = R_earth * sin(lat) / (AU / D_craft_from_sun)
-% where D_craft_from_sun = AU - (L1_spice + X_optimal)
-% Projection factor computed from standard constants — no SPICE needed here
-% because we only need the nominal value for placement geometry.
-AU_km             = 149597870.7;
-L1_spice_km       = 1521600;
+if use_polar_n_counts
+    params.N_uniform  = 0;
+    params.N_targeted = params.polar_N_north + params.polar_N_south;
+    params.N          = params.N_targeted;  % override total N to match explicit counts
+    if params.polar_N_north > 0 && params.polar_N_south > 0
+        params.hemisphere = 'both';
+    elseif params.polar_N_north > 0
+        params.hemisphere = 'north';
+    elseif params.polar_N_south > 0
+        params.hemisphere = 'south';
+    else
+        error('[params] For polar: polar_N_north + polar_N_south must be > 0');
+    end
+    params.polar_fraction = 1; % ellipses-only when explicit counts are used
+else
+    params.N_uniform  = round(params.N * (1 - params.polar_fraction));
+    params.N_targeted = params.N - params.N_uniform;
+end
+
+% Nominal optimal X location for plane centering (km)
 X_optimal_km      = 838400;
-D_craft_from_sun  = AU_km - (L1_spice_km + X_optimal_km);
-projection_factor = AU_km / D_craft_from_sun;   % ~1.016
-earth_radius_km   = 6371;
-
-lat_rad           = deg2rad(params.target_latitude_deg);
-params.Z_center_km = earth_radius_km * sin(lat_rad) / projection_factor;
-
-% Z sigma: convert latitude band width to km using same projection
-band_rad           = deg2rad(params.latitude_band_width_deg);
-params.Z_sigma_km  = earth_radius_km * sin(band_rad) / projection_factor;
 
 % X positions of each plane, centred on X_optimal_km
 % e.g. 5 planes at 10,000 km spacing -> offsets [-20000 -10000 0 10000 20000]
@@ -237,6 +266,50 @@ params.N_per_plane = base_per_plane * ones(1, params.n_planes);
 mid                = ceil(params.n_planes / 2);
 params.N_per_plane(mid) = params.N_per_plane(mid) + remainder;
 
+% Polar explicit north/south counts (if provided):
+% Allocate requested north/south ellipse craft counts across planes,
+% so that the per-plane totals still sum to params.N_per_plane(p).
+use_polar_n_counts = isfield(params, 'polar_N_north') && isfield(params, 'polar_N_south') && ...
+                     ~isnan(params.polar_N_north) && ~isnan(params.polar_N_south);
+if strcmp(params.pattern, 'polar') && use_polar_n_counts
+    N_total = params.N;
+    if N_total < 1
+        error('[params] For polar: total N must be >= 1.');
+    else
+        Nn_total = params.polar_N_north;
+        % Allocate with largest-remainder method to match exact integer sum.
+        ideal_north = Nn_total * (params.N_per_plane ./ N_total);
+        north_floor = floor(ideal_north);
+        remainder_north = Nn_total - sum(north_floor);
+
+        frac = ideal_north - north_floor;
+        north_per_plane = north_floor;
+        if remainder_north > 0
+            [~, sort_idx] = sort(frac, 'descend');
+            for ii = 1:remainder_north
+                north_per_plane(sort_idx(ii)) = north_per_plane(sort_idx(ii)) + 1;
+            end
+        elseif remainder_north < 0
+            % Shouldn't happen with floor(), but guard anyway.
+            [~, sort_idx] = sort(frac, 'ascend');
+            for ii = 1:(-remainder_north)
+                north_per_plane(sort_idx(ii)) = north_per_plane(sort_idx(ii)) - 1;
+            end
+        end
+
+        % Sanity checks: non-negative and sums preserved.
+        if any(north_per_plane < 0)
+            error('[params] For polar: north per-plane allocation produced negative counts.');
+        end
+        if sum(north_per_plane) ~= Nn_total
+            error('[params] For polar: north per-plane allocation does not sum to polar_N_north.');
+        end
+
+        params.polar_N_north_per_plane = north_per_plane;
+        params.polar_N_south_per_plane = params.N_per_plane - north_per_plane;
+    end
+end
+
 % Guard: plane spacing must be at least min_buffer for cross-plane safety
 if params.plane_spacing_km < params.min_buffer_km
     warning(['[params] plane_spacing_km (%.0f) is less than min_buffer_km (%.0f). ' ...
@@ -245,13 +318,21 @@ if params.plane_spacing_km < params.min_buffer_km
 end
 
 % Gaussian sigma in km
-params.footprint_sigma_km = params.constellation_radius_km * ...
-                             params.footprint_sigma_fraction;
+if strcmp(params.pattern, 'uniform')
+    params.footprint_sigma_km = params.constellation_radius_km * ...
+                                 params.footprint_sigma_fraction;
+else
+    params.footprint_sigma_km = NaN;
+end
 
 % Solar disk radius — stored for reference and for export header
 params.solar_disk_radius_km = SOLAR_DISK_RADIUS_KM;
-params.footprint_pct_of_disk = 100 * params.constellation_radius_km / ...
-                                SOLAR_DISK_RADIUS_KM;
+if strcmp(params.pattern, 'uniform')
+    params.footprint_pct_of_disk = 100 * params.constellation_radius_km / ...
+                                    SOLAR_DISK_RADIUS_KM;
+else
+    params.footprint_pct_of_disk = NaN;
+end
 
 % -------------------------------------------------------------------------
 % SUMMARY
@@ -265,8 +346,10 @@ fprintf('  X plane positions    : '); fprintf('%.0f  ', params.X_planes_km);
 fprintf('km\n');
 fprintf('  N per plane          : '); fprintf('%d  ',   params.N_per_plane);
 fprintf('\n');
-fprintf('  Constellation radius : %.0f km  (%.0f%% of solar disk)\n', ...
-        params.constellation_radius_km, params.footprint_pct_of_disk);
+if strcmp(params.pattern, 'uniform')
+    fprintf('  Constellation radius : %.0f km  (%.0f%% of solar disk)\n', ...
+            params.constellation_radius_km, params.footprint_pct_of_disk);
+end
 fprintf('  Footprint profile    : %s', params.footprint_profile);
 if strcmp(params.footprint_profile, 'gaussian')
     fprintf('  (sigma = %.0f km)', params.footprint_sigma_km);
@@ -276,14 +359,18 @@ fprintf('  Sail radius          : %.1f km\n', params.sail_radius_km);
 fprintf('  Min buffer           : %.1f km  (edge-to-edge)\n', params.min_buffer_km);
 
 if strcmp(params.pattern, 'polar')
+    use_polar_n_counts = isfield(params, 'polar_N_north') && isfield(params, 'polar_N_south') && ...
+                         ~isnan(params.polar_N_north) && ~isnan(params.polar_N_south);
+    if use_polar_n_counts
+        fprintf('  Polar north shades   : %d\n', params.polar_N_north);
+        fprintf('  Polar south shades   : %d\n', params.polar_N_south);
+    end
     fprintf('  Polar fraction       : %.2f  (%d targeted / %d uniform)\n', ...
             params.polar_fraction, params.N_targeted, params.N_uniform);
-    fprintf('  Target latitude      : %.1f deg (%s)\n', ...
-            params.target_latitude_deg, params.hemisphere);
-    fprintf('  Latitude band width  : %.1f deg (1-sigma)\n', ...
-            params.latitude_band_width_deg);
-    fprintf('  Z center offset      : %.1f km\n', params.Z_center_km);
-    fprintf('  Z sigma              : %.1f km\n', params.Z_sigma_km);
+    fprintf('  Polar center Z       : %.1f km (%s)\n', ...
+            params.polar_center_z_km, params.hemisphere);
+    fprintf('  Polar ellipse axes   : Y %.0f km, Z %.0f km\n', ...
+            params.polar_radius_y_km, params.polar_radius_z_km);
 end
 fprintf('--------------------------------\n\n');
 
