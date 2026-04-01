@@ -23,7 +23,7 @@ model_parameters.analysis_type               = 'irradiance factor';
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-model_parameters.configuration               = 'manual';
+model_parameters.configuration               = 'preconfigured: low resolution';
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -48,7 +48,7 @@ model_parameters.configuration               = 'manual';
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-model_parameters.time.start            = '2024-07-05T00:00:00';
+model_parameters.time.start            = '2024-01-01T00:00:00';
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -106,7 +106,7 @@ model_parameters.time.periods          = 1;
 
 
 		model_parameters.star.partition_type   = 'sphere';
-		model_parameters.planet.partition_type = 'sphere';
+		model_parameters.planet.partition_type = 'disc';
 		model_parameters.shade.partition_type  = 'heliogyros';
 
 

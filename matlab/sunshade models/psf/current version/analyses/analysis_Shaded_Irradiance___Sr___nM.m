@@ -130,7 +130,7 @@ for j = 1:size(partitions.positions.planet, 3)
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-	projected_shade_areas   = projected_shade_areas .* max(0, -vectors.unit_normal.S .* vectors.unit.p.S);
+	projected_shade_areas   = projected_shade_areas .* max(0, sum(-vectors.unit_normal.S .* vectors.unit.p.S, 1));
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -154,11 +154,11 @@ for j = 1:size(partitions.positions.planet, 3)
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		projections_SPxS               = max(0, -vectors.unit_normal.S .* vectors.unit.p.S);
-		projections_SPxS               = sum(projections_SPxS,1);
+		projections_SPxS               = sum(-vectors.unit_normal.S .* vectors.unit.p.S, 1);
+		projections_SPxS               = max(0, projections_SPxS);
 
-		projections_PSxP               = max(0, unit_normal_vector_P .* vectors.unit.p.S);
-		projections_PSxP               = sum(projections_PSxP, 1);
+		projections_PSxP               = sum(unit_normal_vector_P .* vectors.unit.p.S, 1);
+		projections_PSxP               = max(0, projections_PSxP);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%

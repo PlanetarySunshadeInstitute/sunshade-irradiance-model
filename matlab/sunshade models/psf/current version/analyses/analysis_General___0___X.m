@@ -88,6 +88,32 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Compute and display the irradiance factor diagnostic chart.
+%   A dedicated 12-step monthly analysis is run so the chart always spans the
+%   full year regardless of how many time steps the main analysis used.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		fprintf('\nComputing diagnostic chart (12 monthly time steps)...\n');
+		diag_year           = str2double(model_parameters.time.start(1:4));
+		diag_time.start     = sprintf('%d-01-15T12:00:00', diag_year);
+		diag_time.frequency = 30;
+		diag_time.periods   = 12;
+
+		diag_results        = analysis_Iterate_And_Switch___Sr2St___M ( ...
+		                          diag_time, partitions, model_parameters.analysis_type, ...
+		                          'diagnostic month: ');
+
+		diag_lat_deg        = linspace(-90, 90, size(diag_results, 1));
+		diag_central_col    = ceil(size(diag_results, 2) / 2);
+		diag_results_2d     = reshape(diag_results(:, diag_central_col, :), ...
+		                              size(diag_results, 1), size(diag_results, 3));
+		diag_time_doy       = 15 + (0:11) * 30;   % mid-month: Jan 15, Feb 14, ...
+
+		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy);
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %	Compute and display the area-weighted mean analysis type along the column,
 %	reflecting the fact that Earth's rotation distributes shade across all longitudes.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -162,7 +188,7 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Analyze the results.    
+%	Analyze the results.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
@@ -170,7 +196,21 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Replicate the analysis results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.    
+%	Extract 12 monthly samples from the regular-year results for the diagnostic chart.
+%   This must happen before repmat/permute expand the array and before clear.
+%   Indices correspond to approx. the 15th of each month in a 365-day year.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		diag_monthly_idx                = [15, 46, 74, 105, 135, 166, 196, 227, 257, 288, 318, 349];
+		diag_lat_deg                    = linspace(-90, 90, size(results, 1));
+		diag_results_2d                 = reshape(results(:, 1, diag_monthly_idx), ...
+		                                          size(results, 1), numel(diag_monthly_idx));
+		diag_time_doy                   = diag_monthly_idx;
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Replicate the analysis results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
@@ -274,6 +314,17 @@ switch true
 		end
 		movefile(nc_files.locations.exports.current_file, new_file);
 		nc_files.locations.exports.current_file = new_file;
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Save the irradiance factor diagnostic chart as a PNG alongside the NC file.
+%   Uses the same filename stem as the NC file (e.g. L1-RU-2026-03-31-001.png).
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		[nc_folder, nc_stem, ~]         = fileparts(new_file);
+		png_path                        = fullfile(nc_folder, [nc_stem, '.png']);
+		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, png_path);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

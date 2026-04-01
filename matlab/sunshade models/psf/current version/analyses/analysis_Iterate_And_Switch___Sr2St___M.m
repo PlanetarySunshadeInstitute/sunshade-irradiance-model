@@ -11,6 +11,32 @@ function    [results] = ...
 
 
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
+%%%%	If using a V2 .mat constellation, pre-load the full time-varying position data once before the loop.
+%%%%	The correct day's positions will be sliced into partitions.shade.heliogyros on each iteration.
+%%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Check the shade file format. If mat_v2, load the full .mat data now to avoid repeated disk reads inside the loop.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+shade_file = location_Heliogyro_Kinematics_Data___E___Sr;
+
+if isfield(shade_file, 'format') && strcmp(shade_file.format, 'mat_v2')
+	use_mat_v2 = true;
+	mat_data   = load(shade_file.location);
+else
+	use_mat_v2 = false;
+	mat_data   = [];
+end
+
+
+%%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
 %%%%	For each time period indicated in the input model parameters:
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
 
@@ -32,6 +58,20 @@ for i = 1:time.periods
 
 
 	time.day_counter = (i-1) * time.frequency;
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	If using a V2 .mat constellation, refresh the shade partition with the positions for this day.
+%	day_counter is 0-based; we convert to a 1-based index and wrap around the constellation's day dimension.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+	if use_mat_v2
+		n_days                                             = size(mat_data.positions, 3);
+		day_idx                                            = mod(time.day_counter, n_days) + 1;
+		partitions.shade.heliogyros.initial.positions      = mat_data.positions(:, :, day_idx);
+		partitions.shade.heliogyros.initial.normal_vectors = mat_data.normals(:, :, day_idx);
+	end
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

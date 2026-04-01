@@ -14,20 +14,22 @@ function    [excel_file] = ...
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-excel_file_name                    = 'constellation_polar_10000crafts_2026-03-24.xlsx';
+excel_file_name                    = 'constellation_B2_10556crafts_2026-03-31_002.mat';
 excel_file_folder                  = location_Excel_Folder___0___St;
 excel_file.location                = strcat(excel_file_folder, excel_file_name);
 excel_file.name                    = excel_file_name;
+excel_file.format                  = 'mat_v2';        % 'mat_v2' for V2 .mat files | 'xlsx_v1' for V1 .xlsx files
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Define the ranges within the Excel file that contain the position vectors, normal vectors, and initial time.     
+%	Define the ranges within the Excel file that contain the position vectors, normal vectors, and initial time.
+%	(Used only when format = 'xlsx_v1'. Retained here for backward compatibility with V1 constellations.)
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
 excel_file.ranges.time_initial     = 'D8';
-excel_file.ranges.position_vectors = 'A11:C10000';
-excel_file.ranges.normal_vectors   = 'D11:F10000';
+excel_file.ranges.position_vectors = 'A11:C20000';
+excel_file.ranges.normal_vectors   = 'D11:F20000';
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

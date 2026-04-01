@@ -26,7 +26,7 @@ excel_folder  = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model';
 % --- Constellation parameters --------------------------------------------
 user_params.pattern                 = 'polar';   % 'uniform' or 'polar'
 user_params.N                       = 11003;   % used for uniform mode
-user_params.n_planes                = 5;
+user_params.n_planes                = 6;
 user_params.plane_spacing_km        = 10000;
 
 user_params.constellation_radius_km = 15000;    % uniform mode only
@@ -40,9 +40,9 @@ user_params.min_buffer_km           = 45;
 % Specify the number of shades in each polar ellipse explicitly.
 user_params.polar_N_north         = 5502;
 user_params.polar_N_south         = 5502;
-user_params.polar_center_z_km      = 7200;
+user_params.polar_center_z_km      = 7100;
 user_params.polar_radius_y_km      = 3000;    % semi-axis in Y for each pole ellipse
-user_params.polar_radius_z_km      = 2000;    % semi-axis in Z for each pole ellipse
+user_params.polar_radius_z_km      = 1800;    % semi-axis in Z for each pole ellipse
 
 % For polar mode, total N is derived from polar_N_north + polar_N_south.
 if strcmp(user_params.pattern, 'polar')
@@ -136,13 +136,34 @@ end
 
 function update_heliogyro_location_file(location_file_path, excel_file_name)
 content = fileread(location_file_path);
-pattern = 'excel_file_name\s*=\s*''[^'']*'';';
-replacement = sprintf('excel_file_name                    = ''%s'';', excel_file_name);
-
-updated = regexprep(content, pattern, replacement, 'once');
-if strcmp(updated, content)
+if isempty(content)
+    error('Empty or unreadable file: %s', location_file_path);
+end
+if contains(content, sprintf('\r\n'))
+    brk = sprintf('\r\n');
+else
+    brk = sprintf('\n');
+end
+lines = regexp(content, '\r?\n', 'split');
+replacement_body = sprintf('excel_file_name                    = ''%s'';', excel_file_name);
+hit = false;
+for k = 1:numel(lines)
+    if isempty(regexp(lines{k}, '^\s*excel_file_name\s*=', 'once'))
+        continue
+    end
+    m = regexp(lines{k}, '^(\s*)', 'tokens', 'once');
+    indent = '';
+    if ~isempty(m)
+        indent = m{1};
+    end
+    lines{k} = [indent, replacement_body]; %#ok<AGROW>
+    hit = true;
+    break
+end
+if ~hit
     error('Could not locate excel_file_name assignment in %s', location_file_path);
 end
+updated = strjoin(lines, brk);
 
 fid = fopen(location_file_path, 'w');
 if fid < 0

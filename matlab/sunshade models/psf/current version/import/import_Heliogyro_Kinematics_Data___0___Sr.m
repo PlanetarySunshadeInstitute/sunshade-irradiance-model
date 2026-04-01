@@ -18,22 +18,49 @@ excel_file                                                                  = lo
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Import the heliogyro initial positions and normal vectors as separate matrices, and the initial time as a string.     
+%	Import the heliogyro initial positions and normal vectors.
+%	Branch on shade file format: 'mat_v2' loads from a V2 .mat file; 'xlsx_v1' uses the original Excel path.
+%	For mat_v2, day 1 is loaded here as a default. analysis_Iterate_And_Switch refreshes per-day during the run.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-heliogyros.initial.positions                                                = readmatrix(excel_file.location,'Range', excel_file.ranges.position_vectors)';
-heliogyros.initial.normal_vectors                                           = readmatrix(excel_file.location,'Range', excel_file.ranges.normal_vectors)';
-heliogyros.initial.time                                                     = readcell(excel_file.location,'Range', excel_file.ranges.time_initial);
+if isfield(excel_file, 'format') && strcmp(excel_file.format, 'mat_v2')
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Remove all entries imported as NaN from the heliogyro position and normal vector sets.      
+%	V2 .mat constellation: load positions and normals for day 1 as initial values.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-heliogyros.initial.positions                                                = heliogyros.initial.positions(:, ~any(isnan(heliogyros.initial.positions)));
-heliogyros.initial.normal_vectors                                           = heliogyros.initial.normal_vectors(:, ~any(isnan(heliogyros.initial.normal_vectors)));
+	mat_data                                                                = load(excel_file.location);
+	heliogyros.initial.positions                                            = mat_data.positions(:, :, 1);
+	heliogyros.initial.normal_vectors                                       = mat_data.normals(:, :, 1);
+	heliogyros.initial.time                                                 = {''};
+
+
+else
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	V1 .xlsx constellation: read position vectors, normal vectors, and initial time from Excel ranges.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+	heliogyros.initial.positions                                            = readmatrix(excel_file.location,'Range', excel_file.ranges.position_vectors)';
+	heliogyros.initial.normal_vectors                                       = readmatrix(excel_file.location,'Range', excel_file.ranges.normal_vectors)';
+	heliogyros.initial.time                                                 = readcell(excel_file.location,'Range', excel_file.ranges.time_initial);
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Remove all entries imported as NaN from the heliogyro position and normal vector sets.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+	heliogyros.initial.positions                                            = heliogyros.initial.positions(:, ~any(isnan(heliogyros.initial.positions)));
+	heliogyros.initial.normal_vectors                                       = heliogyros.initial.normal_vectors(:, ~any(isnan(heliogyros.initial.normal_vectors)));
+
+
+end
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
