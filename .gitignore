@@ -2,3 +2,25 @@ anciennes versions/
 numerical control/exports/
 **/.DS_Store
 *.asv
+
+# Claude workspace
+.claude/
+
+# Planning / analysis docs (working files, not source)
+Planning/
+Analysis/
+
+# Generated constellation output files
+excel/psf model/constellation_*.mat
+excel/psf model/constellation_*.xlsx
+excel/psf model/constellation_*.png
+excel/psf model/constellation_*_diagnostic.png
+excel/psf model/constellation_*_preview.png
+
+# Scratch / test outputs
+*.zip
+test_*.mat
+test_surrogate.mat
+
+# Polar optimizer scratch (commit explicitly when ready)
+matlab/sunshade models/psf/current version/polar_optimizer/
