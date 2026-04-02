@@ -19,9 +19,9 @@ clear; clc;
 % =========================================================================
 
 % --- Paths ---------------------------------------------------------------
-envelope_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab/matlab/sunshade models/psf/current version/constellation generator', ...
-                          'equilibrium_envelope.mat');
-excel_folder  = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model';
+paths         = config_paths();
+envelope_file = fullfile(paths.constellation, 'equilibrium_envelope.mat');
+excel_folder  = paths.excel_folder;
 
 % --- Constellation parameters --------------------------------------------
 user_params.pattern                 = 'polar';   % 'uniform' or 'polar'
@@ -76,8 +76,7 @@ params.output_filename = resolved_name;
 filepath = export_kinematics_xlsx(positions, params, excel_folder);
 
 % Update the irradiance model location file to point at the new export.
-location_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab/matlab/sunshade models/psf/current version/file locations', ...
-                         'location_Heliogyro_Kinematics_Data___E___Sr.m');
+location_file = fullfile(paths.file_locations, 'location_Heliogyro_Kinematics_Data___E___Sr.m');
 update_heliogyro_location_file(location_file, resolved_name);
 
 % Auto-run irradiance analysis and capture its 11x11 grid.

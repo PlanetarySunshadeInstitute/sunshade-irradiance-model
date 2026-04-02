@@ -16,7 +16,7 @@ function    [excel_file] = ...
 
 excel_file_name                           = 'star spectral data.xlsx';
 excel_file_folder                         = location_Excel_Folder___0___St;
-excel_file.location                       = strcat(excel_file_folder, excel_file_name);
+excel_file.location                       = fullfile(excel_file_folder, excel_file_name);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%

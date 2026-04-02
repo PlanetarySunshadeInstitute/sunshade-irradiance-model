@@ -15,8 +15,8 @@ function    [nc_files] = ...
 
 
 nc_irradiance_factor_template_name             = 'irradiance factor template.nc';
-nc_template_folder                             = strcat(location_NC_Folder___0___St,'templates/');
-nc_files.locations.templates.irradiance_factor = strcat(nc_template_folder, nc_irradiance_factor_template_name);
+nc_template_folder                             = fullfile(location_NC_Folder___0___St, 'templates');
+nc_files.locations.templates.irradiance_factor = fullfile(nc_template_folder, nc_irradiance_factor_template_name);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -24,8 +24,8 @@ nc_files.locations.templates.irradiance_factor = strcat(nc_template_folder, nc_i
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-nc_export_folder                               = strcat(location_NC_Folder___0___St,'exports/');
-nc_files.locations.exports.current_file        = strcat(nc_export_folder, 'v.', string(datetime('now','Format','yy.MM.dd-hh.mm')), ' irradiance factors.nc');
+nc_export_folder                               = fullfile(location_NC_Folder___0___St, 'exports');
+nc_files.locations.exports.current_file        = fullfile(nc_export_folder, strcat('v.', string(datetime('now','Format','yy.MM.dd-hh.mm')), ' irradiance factors.nc'));
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

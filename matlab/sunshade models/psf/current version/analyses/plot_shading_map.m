@@ -9,7 +9,7 @@
 %%  USER SETTINGS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-nc_file    = '/Users/morgangoodwin/Desktop/PSF/MatLab/numerical control/exports/v.26.03.19-11.08 irradiance factors.nc';
+nc_file    = fullfile(config_paths().nc_exports, 'v.26.03.19-11.08 irradiance factors.nc');
 time_index = 1;   % Which time step to plot (1 = first day)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

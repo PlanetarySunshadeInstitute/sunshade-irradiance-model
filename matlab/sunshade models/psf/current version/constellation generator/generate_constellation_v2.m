@@ -32,9 +32,9 @@ clear; clc;
 % LOAD PARAMETERS AND ENVELOPE
 % =========================================================================
 
-envelope_file = fullfile('/Users/morgangoodwin/Desktop/PSF/MatLab/matlab/sunshade models/psf/current version/constellation generator', ...
-                          'equilibrium_envelope.mat');
-mat_folder    = '/Users/morgangoodwin/Desktop/PSF/MatLab/excel/psf model';
+paths         = config_paths();
+envelope_file = fullfile(paths.constellation, 'equilibrium_envelope.mat');
+mat_folder    = paths.excel_folder;
 
 params   = input_Constellation_V2_Parameters();
 envelope = load_envelope(envelope_file);
