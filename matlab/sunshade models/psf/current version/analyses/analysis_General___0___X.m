@@ -48,6 +48,19 @@ end
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Extract constellation metadata for the diagnostic chart.
+%	shade partitions are only built when analysis_type is not 'irradiance'.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+if isfield(partitions, 'shade') && isfield(partitions.shade, 'heliogyros')
+	num_shades = size(partitions.shade.heliogyros.initial.positions, 2);
+else
+	num_shades = [];
+end
+
+
 switch true
 
 
@@ -110,7 +123,8 @@ switch true
 		                              size(diag_results, 1), size(diag_results, 3));
 		diag_time_doy       = 15 + (0:11) * 30;   % mid-month: Jan 15, Feb 14, ...
 
-		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy);
+		excel_file          = location_Heliogyro_Kinematics_Data___E___Sr;
+		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, '', excel_file.name, num_shades);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -324,7 +338,7 @@ switch true
 
 		[nc_folder, nc_stem, ~]         = fileparts(new_file);
 		png_path                        = fullfile(nc_folder, [nc_stem, '.png']);
-		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, png_path);
+		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, png_path, excel_file.name, num_shades);
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -22,5 +22,8 @@ excel/psf model/constellation_*_preview.png
 test_*.mat
 test_surrogate.mat
 
+# Generated NetCDF outputs (large binary files, not source)
+*.nc
+
 # Polar optimizer scratch (commit explicitly when ready)
 matlab/sunshade models/psf/current version/polar_optimizer/
