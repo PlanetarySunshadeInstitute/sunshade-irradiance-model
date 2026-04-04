@@ -94,7 +94,9 @@ for i = 1:spectral_data.number_of_bands
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Use one factor of the Star's projections to account for surface alignment, and another expanded in a power series to account for limb darkening.       
+%	Use one factor of the Star's projections to account for surface alignment, and another expanded in a power series to account for limb darkening.
+%	Both factors are restored here (Bug 2 fix): analysis_Irradiance must apply limb darkening symmetrically with analysis_Shaded_Irradiance,
+%	otherwise the shading factor (shaded / base) systematically underestimates shading intensity by ~3x at all latitudes.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
@@ -102,7 +104,7 @@ for i = 1:spectral_data.number_of_bands
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Calculate the solar irradiance incident on each partitioned Planet subsurface from each partitioned Star subsurface.      
+%	Calculate the solar irradiance incident on each partitioned Planet subsurface from each partitioned Star subsurface.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 

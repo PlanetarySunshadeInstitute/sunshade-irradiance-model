@@ -83,11 +83,15 @@ vectors.norms.p.S               = t_1 .* vectors.norms.p.H;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Calculate the unit normal vectors on the sphere at each point of intersection with the extensions of vectors pxH.    
+%	Calculate the unit normal vectors on the sphere at each point of intersection with the extensions of vectors pxH.
+%	The intersection point in the common coordinate system is P + t_1*(H - P) = t_1*vectors.p.H + vector_P.
+%	The outward normal at that point is (intersection - center_S) = t_1*vectors.p.H + vectors.p.s,
+%	where vectors.p.s = vector_P - center_S (computed above). The previous expression "t_1.*vectors.p.H - center_S"
+%	omitted the vector_P offset, producing a small (~0.06-0.14 degree) angular error in the normal direction.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-vectors.unit_normal.S           = t_1 .* vectors.p.H - center_S;
+vectors.unit_normal.S           = t_1 .* vectors.p.H + vectors.p.s;
 vectors.unit_normal.S           = vectors.unit_normal.S ./ vecnorm(vectors.unit_normal.S, 2, 1);
 
 

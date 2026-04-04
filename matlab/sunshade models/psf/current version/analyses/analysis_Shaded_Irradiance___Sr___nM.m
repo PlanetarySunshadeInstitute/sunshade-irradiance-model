@@ -126,11 +126,13 @@ for j = 1:size(partitions.positions.planet, 3)
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Project the resulting shaded areas onto the normal vectors on the Star surface. This gives the shaded areas on the sun.   
+%	The shadow cross-section (perpendicular to the ray) is already in projected_shade_areas. Do NOT project onto the Star surface normal here.
+%	For a Lambertian emitter, the cos(theta_S) from emission and the 1/cos(theta_S) from the larger tilted surface area cancel exactly,
+%	so the blocked irradiance is independent of where on the disc the shadow falls. Multiplying by cos(theta_S) here was Bug 1: it combined
+%	with the Lambertian cos(theta_S) in the spectral loop below to produce an erroneous cos^2(theta_S) factor, causing a ~31% false
+%	equator-to-pole gradient. The correct approach is to leave projected_shade_areas as the shadow cross-section and let the LD-weighted
+%	Lambertian factor in the spectral loop below handle the only remaining position dependence (limb darkening).
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-
-
-	projected_shade_areas   = projected_shade_areas .* max(0, sum(-vectors.unit_normal.S .* vectors.unit.p.S, 1));
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -162,11 +164,13 @@ for j = 1:size(partitions.positions.planet, 3)
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Use one factor of the Star's projections to account for surface alignment, and another expanded in a power series to account for limb darkening.       
+%	Apply limb darkening via a power series in cos(theta_S). The plain cos(theta_S) factor is intentionally omitted here: it was previously
+%	included as "projections_SPxS .*" but that constituted the second half of a cos^2(theta_S) double-count (Bug 1). For a Lambertian source
+%	the only position-dependent term that should remain is the limb darkening function itself, LD(cos(theta_S)).
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		limb_darkened_projections_SPxS = projections_SPxS .* power_Series_Of_Matrix___MC___M (projections_SPxS, spectral_data.coefficients(k,:));
+		limb_darkened_projections_SPxS = power_Series_Of_Matrix___MC___M (projections_SPxS, spectral_data.coefficients(k,:));
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
