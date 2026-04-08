@@ -170,6 +170,27 @@ Verification (`test_declination_shift_verification.m`): the shadow trough (minim
 
 ---
 
+## Future Work and Known Issues
+
+### Active development
+
+**Longitude averaging and grid representation** — The current implementation takes a single latitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is the correct approximation for a constellation symmetric around the Earth-Sun axis, but the physical basis should be confirmed and documented. Related: clarify what the corners of the 11×11 manual-mode output grid represent geometrically.
+
+**L1 distance reconciliation** — Reconcile the current first-order L1 approximation with Matt's updated orbital mechanics work.
+
+**Preferential hemisphere shading via θ variation** — Implement the ability for shades to vary their overall blade angle θ and adjust their distance from the Sun accordingly. A shade tilted away from normal moves to a new equilibrium point further from the Sun, reducing its effective shade area but allowing preferential shading of one hemisphere. The intended design: maximum shading intensity during northern hemisphere summer, reduced but still significant shading during southern hemisphere summer, with the constellation "in motion" between the two. Sub-task: establish the correlation between distance from the Sun and average blade angle θ using reference data.
+
+**Genetic algorithm constellation optimization** — Explore genetic algorithms as an approach to optimizing constellation geometry for target shade outcomes.
+
+### Lower priority cleanup
+
+1. ~~Generalize filepath configuration~~ *(completed — see `config_paths.m`)*
+2. Project L1 position / SPICE data forward through 2050.
+3. Split `material_irradiance_absorption` into two functions: one for total geometric area, one for material opacity (1.0 for heliogyro).
+4. Incorporate the effect of aphelion/perihelion motion on L1 equilibrium dynamics throughout the year.
+
+---
+
 ## Other Notes
 
 `L1_Stability_Region_Data_Visualization.m` reads the heliogyro kinematics file and produces diagnostic plots of the constellation geometry: a 3D point cloud, orthogonal projections (XY, XZ, YZ), position histograms, and an outer envelope plot of the array face-on. Useful for spot-checking constellation geometry outside of a full model run. Set the `filename` path in the User Settings section at the top, then run directly in MATLAB.
