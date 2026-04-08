@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Limb Darkening — Sunshade Placement Implications</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1814;
+    --ink-mid: #4a4740;
+    --ink-light: #8a8780;
+    --rule: #d8d4cc;
+    --accent: #1a4a8a;
+    --accent-warm: #8a3a1a;
+    --bg: #f7f5f0;
+    --bg-card: #ffffff;
+    --sun-gold: #c97d20;
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 64px 40px 80px;
+  }
+
+  /* Header */
+  .doc-header {
+    border-top: 3px solid var(--ink);
+    border-bottom: 1px solid var(--rule);
+    padding: 32px 0 24px;
+    margin-bottom: 52px;
+  }
+
+  .doc-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ink-light);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    line-height: 1.1;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  h1 em {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .doc-subtitle {
+    font-size: 15px;
+    color: var(--ink-mid);
+    margin-top: 12px;
+    max-width: 560px;
+    line-height: 1.5;
+  }
+
+  /* Sections */
+  .section {
+    margin-bottom: 52px;
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 16px;
+    line-height: 1.2;
+  }
+
+  p {
+    font-size: 15px;
+    color: var(--ink-mid);
+    line-height: 1.75;
+    margin-bottom: 14px;
+  }
+
+  p strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Callout box */
+  .callout {
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent);
+    padding: 18px 22px;
+    margin: 24px 0;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .callout.warm {
+    border-left-color: var(--sun-gold);
+  }
+
+  .callout p {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .callout .callout-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  .callout.warm .callout-label {
+    color: var(--sun-gold);
+  }
+
+  /* Key number display */
+  .key-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 24px 0;
+  }
+
+  .key-number {
+    background: var(--bg-card);
+    padding: 20px 18px;
+    text-align: center;
+  }
+
+  .key-number .num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .key-number .num.accent { color: var(--accent); }
+  .key-number .num.warm { color: var(--accent-warm); }
+  .key-number .num.gold { color: var(--sun-gold); }
+
+  .key-number .label {
+    font-size: 12px;
+    color: var(--ink-light);
+    line-height: 1.3;
+  }
+
+  /* Chart container */
+  .chart-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 24px 24px 16px;
+    margin: 24px 0;
+  }
+
+  .chart-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-light);
+    margin-bottom: 4px;
+  }
+
+  .chart-desc {
+    font-size: 13px;
+    color: var(--ink-mid);
+    margin-bottom: 20px;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 260px;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--ink-light);
+  }
+
+  .chart-legend span {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .legend-line {
+    display: inline-block;
+    width: 22px;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .legend-line.dashed {
+    background: repeating-linear-gradient(90deg, var(--accent-warm) 0, var(--accent-warm) 5px, transparent 5px, transparent 9px);
+  }
+
+  /* Crossover callout */
+  .crossover-visual {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+
+  .crossover-bar {
+    position: relative;
+    height: 36px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 16px 0 8px;
+    background: linear-gradient(90deg, #1a4a8a 0%, #1a4a8a 83%, #8a3a1a 83%, #8a3a1a 100%);
+  }
+
+  .crossover-marker {
+    position: absolute;
+    left: 83%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: white;
+  }
+
+  .crossover-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  .crossover-labels .left { color: var(--accent); }
+  .crossover-labels .right { color: var(--accent-warm); }
+
+  .crossover-sublabel {
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-light);
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+
+  /* Reference link */
+  .ref-box {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .ref-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .ref-box p {
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .ref-title {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  /* Footer */
+  .doc-footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 24px;
+    margin-top: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .doc-footer p {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-light);
+    margin: 0;
+  }
+
+  @media (max-width: 560px) {
+    .page { padding: 36px 20px 60px; }
+    h1 { font-size: 30px; }
+    .key-numbers { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header">
+    <div class="doc-meta">Planetary Sunshade Foundation &nbsp;·&nbsp; Analysis Reference &nbsp;·&nbsp; March 20, 2026</div>
+    <h1>Limb Darkening &amp; <em>Sunshade Placement</em></h1>
+    <p class="doc-subtitle">Topline implications of solar limb darkening for constellation design and shade effectiveness — drawing on validated model output and mathematical walkthrough.</p>
+  </div>
+
+  <!-- SECTION 1: Theory & Code -->
+  <div class="section">
+    <div class="section-label">01 &nbsp; Theory &amp; Implementation</div>
+    <h2>We understand how this is modeled — and we trust it</h2>
+
+    <p>The PSF model implements limb darkening as a power series in cos θ (Eq. 1.4.1), using coefficients sourced from Tripathi et al. (2020) for total solar intensity. The profile is:</p>
+
+    <div class="callout">
+      <div class="callout-label">Limb darkening profile</div>
+      <p><strong>I(θ) / I(0) = 0.61 + 0.39 · cos θ</strong> &nbsp;&mdash;&nbsp; intensity at disk center is 1.00; at the limb it falls to 0.61.</p>
+    </div>
+
+    <p>We traced the implementation end-to-end: from the Excel coefficients through <code>import_Spectral_Data</code> normalization (via Wallis integrals), through <code>power_Series_Of_Matrix</code>, and into both <code>analysis_Irradiance</code> and <code>analysis_Shaded_Irradiance</code>. The math is correctly implemented. A numerical comparison run — toggling C1/C2 between (0.61, 0.39) and (1, 0) — produced outputs consistent with theory.</p>
+
+    <div class="ref-box">
+      <div class="ref-icon">📄</div>
+      <div>
+        <div class="ref-title">Limb Darkening in the PSF Sunshade Model: Step-by-Step Walkthrough</div>
+        <p>Full derivation of coefficients, normalization integrals, and code tracing. <em>limb_darkening_walkthrough.md</em> — PSF Analysis, March 20, 2026.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: The crossover -->
+  <div class="section">
+    <div class="section-label">02 &nbsp; The Effectiveness Crossover</div>
+    <h2>Shades closer to the solar center punch above their weight</h2>
+
+    <p>Because the solar disk is brighter at center than at the limb, where a shade falls on the disk directly determines how much flux it blocks. A shade intercepting sunlight near the center of the solar disk blocks more flux per unit area than simple geometry would predict. Near the edge, the reverse is true.</p>
+
+    <div class="key-numbers">
+      <div class="key-number">
+        <div class="num accent">100%</div>
+        <div class="label">Flux blocked at disk center (θ = 0°)</div>
+      </div>
+      <div class="key-number">
+        <div class="num gold">~56°</div>
+        <div class="label">Crossover angle (r/R ≈ 0.83 of solar radius)</div>
+      </div>
+      <div class="key-number">
+        <div class="num warm">61%</div>
+        <div class="label">Intensity remaining at the limb (θ = 90°)</div>
+      </div>
+    </div>
+
+    <p>Inside the crossover radius (r/R &lt; 0.83), limb darkening makes shades <strong>more effective</strong> than a uniform-disk model would predict. Outside it, shades are <strong>less effective</strong>. The crossover point sits at roughly θ ≈ 56° from disk center — about 83% of the way to the solar limb.</p>
+
+    <div class="crossover-visual">
+      <div style="font-size:13px; color: var(--ink-mid); margin-bottom: 12px;">Shade effectiveness relative to uniform-disk prediction, by solar disk position</div>
+      <div class="crossover-bar">
+        <div class="crossover-marker"></div>
+      </div>
+      <div class="crossover-labels">
+        <span class="left">↑ More effective than predicted &nbsp; (r/R &lt; 0.83)</span>
+        <span class="right">(r/R &gt; 0.83) &nbsp; Less effective ↑</span>
+      </div>
+      <div class="crossover-sublabel">Crossover at θ ≈ 56° &nbsp;·&nbsp; r/R ≈ 0.83</div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-title">Numerical comparison — center vertical of 21×21 output</div>
+      <div class="chart-desc">Irradiance profile with and without limb darkening. The with-LD curve dips slightly lower at center, reflecting the concentration of flux toward the optical axis.</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="ldChart"></canvas>
+      </div>
+      <div class="chart-legend">
+        <span><span class="legend-line"></span> With limb darkening</span>
+        <span><span class="legend-line dashed"></span> No limb darkening</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Placement implications -->
+  <div class="section">
+    <div class="section-label">03 &nbsp; Constellation Design Implications</div>
+    <h2>Proximity to the sun–Earth line is a force multiplier</h2>
+
+    <p>For a sunshade constellation operating near the sun–Earth L1 point, shades aligned close to the sun–Earth line cast shadows that intersect the solar disk near its center — well within the crossover radius. In this regime, limb darkening works in our favor: each shade element blocks slightly more flux than a uniform-disk model would predict, making the constellation modestly more effective overall.</p>
+
+    <div class="callout warm">
+      <div class="callout-label">Design implication</div>
+      <p>Constellations concentrated near the sun–Earth line benefit from limb darkening. As shades are displaced off-axis — whether for orbital mechanics reasons or to target specific latitudes — their projected angle on the solar disk increases, eventually crossing the θ ≈ 56° threshold where limb darkening begins to reduce effectiveness.</p>
+    </div>
+
+    <p>This creates a meaningful tradeoff for <strong>spatially selective shading</strong> designs. Targeting specific latitudes on Earth requires off-axis shade placement, which shifts the shade's projection toward the solar limb. The gains in geographic selectivity must be weighed against the real reduction in flux-blocking efficiency. At the extreme, a shade near the solar limb (r/R &gt; 0.83) blocks substantially less flux than the same shade near center — the falloff is steep, from ~63% of peak effectiveness at the crossover to just ~6% at the very limb.</p>
+
+    <p>In practice, the geometric cos θ foreshortening effect (Lambert's law) dominates over limb darkening itself in driving this falloff. Limb darkening adds a secondary but non-negligible correction on top — one that shifts the effective crossover slightly inward compared to a uniform-disk assumption.</p>
+
+    <div class="callout">
+      <div class="callout-label">Bottom line</div>
+      <p>Limb darkening modestly rewards on-axis placement and modestly penalizes off-axis placement. For most practical constellation geometries concentrated near the optical axis, the net effect is a slight boost in effectiveness (~5%). For selective-shading designs targeting off-axis positions, it is a real efficiency cost that should be explicitly modeled — not assumed away.</p>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <p>Planetary Sunshade Foundation</p>
+    <p>March 20, 2026 &nbsp;·&nbsp; PSF Analysis Series</p>
+  </div>
+
+</div>
+
+<script>
+const withLD = [0.9947,0.9945,0.9942,0.9938,0.9933,0.9928,0.9923,0.9918,0.9914,0.9912,0.9911,0.9912,0.9914,0.9918,0.9923,0.9928,0.9933,0.9938,0.9942,0.9945,0.9946];
+const noLD   = [0.9950,0.9949,0.9946,0.9943,0.9939,0.9935,0.9931,0.9927,0.9925,0.9923,0.9922,0.9923,0.9924,0.9927,0.9931,0.9935,0.9939,0.9943,0.9946,0.9948,0.9950];
+const labels = Array.from({length: 21}, (_, i) => i + 1);
+
+new Chart(document.getElementById('ldChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'With limb darkening',
+        data: withLD,
+        borderColor: '#1a4a8a',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3
+      },
+      {
+        label: 'No limb darkening',
+        data: noLD,
+        borderColor: '#8a3a1a',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        borderDash: [5, 4]
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        title: { display: true, text: 'Row index (center vertical)', color: '#8a8780', font: { size: 11, family: 'DM Mono' } },
+        ticks: { color: '#8a8780', font: { size: 10 } },
+        grid: { color: 'rgba(0,0,0,0.06)' }
+      },
+      y: {
+        title: { display: true, text: 'Irradiance (normalized)', color: '#8a8780', font: { size: 11, family: 'DM Mono' } },
+        ticks: { color: '#8a8780', font: { size: 10 }, callback: v => v.toFixed(3) },
+        grid: { color: 'rgba(0,0,0,0.06)' },
+        min: 0.991,
+        max: 0.996
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>

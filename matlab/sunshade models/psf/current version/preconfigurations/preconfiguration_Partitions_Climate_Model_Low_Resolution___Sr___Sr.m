@@ -73,7 +73,7 @@ model_parameters.time.regular_year.periods   = 365;
 
 model_parameters.time.leap_year.start        = '2024-01-01T12:00:00';
 model_parameters.time.leap_year.frequency    = 1;
-model_parameters.time.leap_year.periods      = 364;
+model_parameters.time.leap_year.periods      = 366;
 
 
 %%&%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

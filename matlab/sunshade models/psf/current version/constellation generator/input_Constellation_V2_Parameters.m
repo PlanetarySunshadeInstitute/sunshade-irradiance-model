@@ -105,22 +105,22 @@ params.placement.random.min_buffer_km    = 45;
 % --- Cluster 1: Blue Cluster ---
 params.clusters(1).name             = 'Blue Cluster';
 params.clusters(1).active           = true;
-params.clusters(1).center_position  = [813400, 0,  6000];
-params.clusters(1).ellipse_radii    = [800, 528];
-params.clusters(1).motion_function  = @(t) [0, 0, 0];
+params.clusters(1).center_position  = [813400, 0,  840];
+params.clusters(1).ellipse_radii    = [2236, 1342];
+params.clusters(1).motion_function = @(t) [0, 0, 3850 * sin(2*pi*t/365 - 0.423*pi)];
 params.clusters(1).n_craft          = 7365;   % random method only
 
 % --- Cluster 2: Red Cluster ---
 params.clusters(2).name             = 'Red Cluster';
 params.clusters(2).active           = true;
-params.clusters(2).center_position  = [813400, 0,  -6000];
-params.clusters(2).ellipse_radii    = [800, 528];
-params.clusters(2).motion_function  = @(t) [0, 0, 0];
+params.clusters(2).center_position  = [813400, 0,  17];
+params.clusters(2).ellipse_radii    = [1491, 894];
+params.clusters(2).motion_function = @(t) [0, 0, 11100 * sin(2*pi*t/365 - 0.4*pi)];
 params.clusters(2).n_craft          = 3191;   % random method only
 
 % --- Cluster 3: Yellow Cluster ---
 params.clusters(3).name             = 'Yellow Cluster';
-params.clusters(3).active           = true;
+params.clusters(3).active           = false;
 params.clusters(3).center_position  = [813400, 0, 0];
 params.clusters(3).ellipse_radii    = [1800, 1800];
 params.clusters(3).motion_function  = @(t) [0, 0, 0];

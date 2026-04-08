@@ -123,8 +123,41 @@ switch true
 		                              size(diag_results, 1), size(diag_results, 3));
 		diag_time_doy       = 15 + (0:11) * 30;   % mid-month: Jan 15, Feb 14, ...
 
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Apply solar declination coordinate correction to the diagnostic results.
+%
+%	The diagnostic uses the same heliocentric-to-geographic shift as the
+%	preconfigured path, but is adapted for the manual-mode phi grid, which
+%	is coarser (planet.phi.n cells over [-90, 90]).  The buffer depth is
+%	computed dynamically so that it always covers the maximum declination
+%	shift for the current grid resolution.
+%
+%	Note: with a coarse grid (e.g. 11 cells, step ~16.4 deg) the shift
+%	toggles between -1, 0, and +1 cells across the year.  The diagnostic
+%	chart will reflect this discrete stepping, which is the physically
+%	correct behaviour at this resolution.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		n_phi_diag          = size(diag_results, 1);
+		lat_step_diag       = 180 / n_phi_diag;                           % degrees per cell for this grid
+		n_buf_diag          = ceil(23.44 / lat_step_diag) + 1;            % max shift + 1 cell margin
+
+		diag_shifted_2d     = zeros(n_phi_diag, numel(diag_time_doy));
+
+		for k = 1 : numel(diag_time_doy)
+		    delta_k         = spencer_declination(diag_time_doy(k), 365);
+		    shift_k         = round(delta_k / lat_step_diag);
+		    buf_s_k         = repmat(diag_results_2d(1,   k), [n_buf_diag, 1]);
+		    buf_n_k         = repmat(diag_results_2d(end, k), [n_buf_diag, 1]);
+		    col_ext         = [buf_s_k; diag_results_2d(:, k); buf_n_k];
+		    row_s_k         = n_buf_diag + 1 - shift_k;
+		    diag_shifted_2d(:, k) = col_ext(row_s_k : row_s_k + n_phi_diag - 1);
+		end
+
 		excel_file          = location_Heliogyro_Kinematics_Data___E___Sr;
-		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, '', excel_file.name, num_shades);
+		plot_irradiance_diagnostic___M___0(diag_shifted_2d, diag_lat_deg, diag_time_doy, '', excel_file.name, num_shades);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -210,43 +243,89 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Extract 12 monthly samples from the regular-year results for the diagnostic chart.
+%	Apply solar declination coordinate correction (regular year).
+%
+%	The shade kernel computes irradiance factors in the heliocentric frame,
+%	where phi = 0 always coincides with the sub-stellar point. To map those
+%	values to the correct geographic latitude for each day, the result array
+%	is shifted by round(delta / lat_step) rows, where delta is the solar
+%	declination from Spencer (1971).
+%
+%	Buffer cells (n_buffer = 27 per hemisphere) are pre-filled with the value
+%	of the outermost computed disc cell for each day.  This avoids a
+%	discontinuity at the buffer boundary and is physically appropriate:
+%	the buffer zone is consumed only near the solstices, when those latitudes
+%	are in polar night and coszrs in CESM drives solin to zero regardless of
+%	the sun_shade value.
+%
+%	Buffer depth (27 cells x 0.9424 deg/cell = 25.44 deg) exceeds the
+%	maximum declination shift (23.44 deg / 0.9424 deg/cell = 24.87 cells,
+%	rounded to 25) by 2 cells of margin.
+%
+%	Reference: Spencer, J.W. (1971). Search, 2(5), 172.
+%	See also:  spencer_declination.m
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		n_buffer                        = 27;
+		lat_step_deg                    = 0.942408376963357;              % degrees per latitude cell, matching the CESM f09 grid
+
+		buffer_south                    = repmat(results(1,   :, :), [n_buffer, 1, 1]);
+		buffer_north                    = repmat(results(end, :, :), [n_buffer, 1, 1]);
+		results_extended                = [buffer_south; results; buffer_north];    % (192 + 2*n_buffer) x 1 x n_days
+
+		n_days                          = size(results, 3);
+		results_shifted                 = zeros(192, 1, n_days);
+
+		for d = 1 : n_days
+		    delta_deg                   = spencer_declination(d, 365);
+		    shift                       = round(delta_deg / lat_step_deg);
+		    row_s                       = n_buffer + 1 - shift;
+		    assert(row_s >= 1 && row_s + 191 <= size(results_extended, 1), ...
+		        'Declination shift exceeds buffer on regular-year day %d (shift = %d cells).', d, shift);
+		    results_shifted(:, :, d)    = results_extended(row_s : row_s + 191, :, d);
+		end
+
+		clear results buffer_south buffer_north results_extended
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Extract 12 monthly samples from the declination-corrected results for the diagnostic chart.
 %   This must happen before repmat/permute expand the array and before clear.
 %   Indices correspond to approx. the 15th of each month in a 365-day year.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
 		diag_monthly_idx                = [15, 46, 74, 105, 135, 166, 196, 227, 257, 288, 318, 349];
-		diag_lat_deg                    = linspace(-90, 90, size(results, 1));
-		diag_results_2d                 = reshape(results(:, 1, diag_monthly_idx), ...
-		                                          size(results, 1), numel(diag_monthly_idx));
+		diag_lat_deg                    = linspace(-90, 90, size(results_shifted, 1));
+		diag_results_2d                 = reshape(results_shifted(:, 1, diag_monthly_idx), ...
+		                                          size(results_shifted, 1), numel(diag_monthly_idx));
 		diag_time_doy                   = diag_monthly_idx;
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Replicate the analysis results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.
+%	Replicate the declination-corrected results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = repmat(results,1,288,1);
+		results_shifted                 = repmat(results_shifted, 1, 288, 1);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Permute the dimensions of the output matrix so that longitude, latitude, and time are represented along dimensions 1,2 and 3, respectively.      
+%	Permute the dimensions of the output matrix so that longitude, latitude, and time are represented along dimensions 1,2 and 3, respectively.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = permute(results, [2 1 3]);
+		results_shifted                 = permute(results_shifted, [2 1 3]);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Export results to the NC file.     
+%	Export results to the NC file.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		ncwrite(nc_files.locations.exports.current_file, 'df', results);
-		ncwrite(nc_files.locations.exports.current_file, 'df', results);
-		clear results
+		ncwrite(nc_files.locations.exports.current_file, 'df', results_shifted);
+		clear results_shifted
 
 
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
@@ -273,7 +352,7 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Analyze the results.    
+%	Analyze the results.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
@@ -281,29 +360,66 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Replicate the analysis results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.    
+%	Apply solar declination coordinate correction (leap year).
+%
+%	Same approach as the regular year.  days_in_year = 366 is passed to
+%	spencer_declination so that the day-angle B is scaled to the correct
+%	annual period for a leap year.
+%
+%	Note: the leap year run uses 364 periods (Jan 1 – Dec 30).  Day indices
+%	1..364 are passed directly to spencer_declination; the formula remains
+%	accurate to within its nominal ~0.035-degree tolerance across this range.
+%
+%	Reference: Spencer, J.W. (1971). Search, 2(5), 172.
+%	See also:  spencer_declination.m
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = repmat(results,1,288,1);
+		n_buffer                        = 27;
+		lat_step_deg                    = 0.942408376963357;              % degrees per latitude cell, matching the CESM f09 grid
+
+		buffer_south                    = repmat(results(1,   :, :), [n_buffer, 1, 1]);
+		buffer_north                    = repmat(results(end, :, :), [n_buffer, 1, 1]);
+		results_extended                = [buffer_south; results; buffer_north];    % (192 + 2*n_buffer) x 1 x n_days
+
+		n_days                          = size(results, 3);
+		results_shifted                 = zeros(192, 1, n_days);
+
+		for d = 1 : n_days
+		    delta_deg                   = spencer_declination(d, 366);
+		    shift                       = round(delta_deg / lat_step_deg);
+		    row_s                       = n_buffer + 1 - shift;
+		    assert(row_s >= 1 && row_s + 191 <= size(results_extended, 1), ...
+		        'Declination shift exceeds buffer on leap-year day %d (shift = %d cells).', d, shift);
+		    results_shifted(:, :, d)    = results_extended(row_s : row_s + 191, :, d);
+		end
+
+		clear results buffer_south buffer_north results_extended
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Permute the dimensions of the output matrix so that longitude, latitude, and time are represented along dimensions 1,2 and 3, respectively.      
+%	Replicate the declination-corrected results across the second dimension (288 longitudinal coordinates), without replication (1) along the first and third dimensions.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		results                         = permute(results, [2 1 3]);
+		results_shifted                 = repmat(results_shifted, 1, 288, 1);
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Export results to the NC file.     
+%	Permute the dimensions of the output matrix so that longitude, latitude, and time are represented along dimensions 1,2 and 3, respectively.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-		ncwrite(nc_files.locations.exports.current_file, 'dfl', results);
-		ncwrite(nc_files.locations.exports.current_file, 'dfl', results);
-		clear results
+		results_shifted                 = permute(results_shifted, [2 1 3]);
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Export results to the NC file.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+		ncwrite(nc_files.locations.exports.current_file, 'dfl', results_shifted);
+		clear results_shifted
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -337,7 +453,7 @@ switch true
 
 
 		[nc_folder, nc_stem, ~]         = fileparts(new_file);
-		png_path                        = fullfile(nc_folder, [nc_stem, '.png']);
+		png_path                        = fullfile(char(nc_folder), [char(nc_stem), '.png']);
 		plot_irradiance_diagnostic___M___0(diag_results_2d, diag_lat_deg, diag_time_doy, png_path, excel_file.name, num_shades);
 
 

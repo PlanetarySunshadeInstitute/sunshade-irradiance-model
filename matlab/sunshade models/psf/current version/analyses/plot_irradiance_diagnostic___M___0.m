@@ -229,7 +229,7 @@ if ~isempty(save_path)
 		try
 			saveas(fig, save_path, 'png');
 		catch err
-			warning('Could not save diagnostic chart: %s\n  %s', save_path, err.message);
+			warning('%s', sprintf('Could not save diagnostic chart: %s\n  %s', save_path, err.message));
 		end
 	end
 	fprintf('Saved diagnostic chart: %s\n', save_path);
