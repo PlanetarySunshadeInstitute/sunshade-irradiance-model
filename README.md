@@ -174,18 +174,20 @@ Verification (`test_declination_shift_verification.m`): the shadow trough (minim
 
 ### Active development
 
-**Longitude averaging and grid representation** — The current implementation takes a single latitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is the correct approximation for a constellation symmetric around the Earth-Sun axis, but the physical basis should be confirmed and documented. Related: clarify what the corners of the 11×11 manual-mode output grid represent geometrically.
+**Longitude averaging and grid representation** — The current implementation takes a single latitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is a  correct approximation for a constellation symmetric around the Earth-Sun axis, but the slight decrease in shade across the radius of the earth will decrease the average shade on the middle strip slightly. Plus, future constellations may have longitudinally-referenced shading. 
 
 **L1 distance reconciliation** — Reconcile the current first-order L1 approximation with Matt's updated orbital mechanics work.
 
-**Preferential hemisphere shading via θ variation** — Implement the ability for shades to vary their overall blade angle θ and adjust their distance from the Sun accordingly. A shade tilted away from normal moves to a new equilibrium point further from the Sun, reducing its effective shade area but allowing preferential shading of one hemisphere. The intended design: maximum shading intensity during northern hemisphere summer, reduced but still significant shading during southern hemisphere summer, with the constellation "in motion" between the two. Sub-task: establish the correlation between distance from the Sun and average blade angle θ using reference data.
+**Blade Angle θ** — Implement the ability for shades to vary their overall blade angle θ and adjust their distance from the Sun accordingly. A shade tilted away from normal moves to a new equilibrium point further from the Sun, reducing its effective shade area but allowing preferential shading of one hemisphere. The intended design: maximum shading intensity during northern hemisphere summer, reduced but still significant shading during southern hemisphere summer, with the constellation "in motion" between the two. Sub-task: establish the correlation between distance from the Sun and average blade angle θ using reference data.
 
 **Genetic algorithm constellation optimization** — Explore genetic algorithms as an approach to optimizing constellation geometry for target shade outcomes.
+
+**Grow constellation over time** - Currently we repeat the same year's worth of data in the model. How do we model a ramp up? 
 
 ### Lower priority cleanup
 
 1. ~~Generalize filepath configuration~~ *(completed — see `config_paths.m`)*
-2. Project L1 position / SPICE data forward through 2050.
+2. Project L1 position / SPICE data forward through all future dates.
 3. Split `material_irradiance_absorption` into two functions: one for total geometric area, one for material opacity (1.0 for heliogyro).
 4. Incorporate the effect of aphelion/perihelion motion on L1 equilibrium dynamics throughout the year.
 
