@@ -174,7 +174,7 @@ Verification (`test_declination_shift_verification.m`): the shadow trough (minim
 
 ### Active development
 
-**Longitude averaging and grid representation** — The current implementation takes a single latitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is a  correct approximation for a constellation symmetric around the Earth-Sun axis, but the slight decrease in shade across the radius of the earth will decrease the average shade on the middle strip slightly. Plus, future constellations may have longitudinally-referenced shading. 
+**Longitude averaging and grid representation** — The current implementation takes a single longitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is a  correct approximation for a constellation symmetric around the Earth-Sun axis, but the slight decrease in shade across the radius of the earth will decrease the average shade on the middle strip slightly. Plus, future constellations may have longitudinally-referenced shading. 
 
 **L1 distance reconciliation** — Reconcile the current first-order L1 approximation with Matt's updated orbital mechanics work.
 
