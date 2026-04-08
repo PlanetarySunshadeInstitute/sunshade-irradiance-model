@@ -1,8 +1,8 @@
-# PSF Irradiance and Sunshade Model
+# Planetary Sunshade Irradiance Model
 
-**Planetary Sunshade Foundation — v26.03.19**
+**Planetary Sunshade Institute — v26.04.07**
 
-This code is written to support planetary sunshade researchers in taking the input of a constellation of sunshades and outputting a file which can be read by climate models. Given a described array of sunshade elements near the Sun-Earth L1 point, the model computes the irradiance factor across a latitude-longitude grid of the Earth's surface and exports the result as a NetCDF file compatible with the NCAR Community Earth System Model (CESM).
+This code is written to support planetary sunshade researchers in generating a constellation of heliogyro sunshades, calculating the shade on the Earth for that array, and outputting a NetCDF (.nc) file which can be read by climate models. Given a described array of sunshade elements near the Sun-Earth L1 point, the model computes the irradiance factor across a latitude-longitude grid of the Earth's surface and exports the result compatible with the NCAR Community Earth System Model (CESM).
 
 ---
 
@@ -12,13 +12,15 @@ The model is built on the mathematical framework described in:
 
 **Raymond, M. (2026). *Irradiance + Sunshade Modeling*, v26.03.18. Planetary Sunshade Foundation.**
 
-This document, included in the repository as `v26_03_18_pfl_sunshade_model.pdf`, defines the complete mathematical basis for the model. It establishes a general surface partition framework, derives the irradiance and shaded irradiance approximations, and describes the limb darkening treatment. All subsequent development — including the bug fixes documented below — is built on this foundation. Researchers using or extending this code should read the PDF first.
+This document, included in the repository as `v26_03_18_pfl_sunshade_model.pdf`, defines the complete mathematical basis for the model. It establishes a general surface partition framework, derives the irradiance and shaded irradiance approximations, and describes the limb darkening treatment. All subsequent development — including the bug fixes and CESM interface work documented below — is built on this foundation. Researchers using or extending this code should read the PDF first.
 
 ---
 
 ## Overview
 
-The model propagates solar flux from the Sun to the Earth through an intermediate layer of sunshade elements positioned near the Sun-Earth L1 Lagrange point. For each partitioned subsurface of the Earth, it computes:
+The model first requires a constellation to be defined and generated. The Constellation Generator places heliogyro sunshades in an array according to user-specified parameters, producing a `.mat` file that the irradiance model reads as input.
+
+The irradiance model then propagates solar flux from the Sun to the Earth through that intermediate layer of sunshade elements positioned near the Sun-Earth L1 Lagrange point. For each partitioned subsurface of the Earth, it can compute:
 
 - **Irradiance**: total solar flux incident on that subsurface
 - **Shaded irradiance**: flux blocked by the shade constellation
@@ -32,149 +34,145 @@ The model accounts for solar limb darkening, the 1/r² scaling of flux, the geom
 ## Repository Structure
 
 ```
-sunshade models/psf/current version/   — MATLAB source code
-excel/psf model/                       — Excel input files
-numerical control		       — .nc reference and template files
-v26_03_18_pfl_sunshade_model.pdf       — Mathematical documentation
+matlab/sunshade models/psf/current version/   — MATLAB source code
+excel/psf model/                              — Excel and .mat input files; constellation outputs
+numerical control/                            — .nc reference and template files
+Reports/                                      — Investigations into functionality
+v26_03_18_pfl_sunshade_model.pdf              — Mathematical documentation
+config_paths.m                                — Portable path configuration (edit once per machine)
 ```
 
 ---
 
 ## Getting Started
 
-See Section 2 of the documentation PDF for full setup instructions. In brief:
+### 1. Path setup
 
-1. Add the `current version` folder and its subfolders to the MATLAB path
-2. Set the paths to your `excel` and `numerical control` folders in `location_Excel_Folder___0___St.m` and `location_NC_Folder___0___St.m`
-3. Configure analysis parameters in `input/input_Model_Parameters___0___Sr.m`
-4. Run `analysis_General___0___X` from the MATLAB command window
+Paths are managed centrally through `config_paths.m` at the repository root. On a fresh clone, no configuration is needed — `config_paths()` detects the project root automatically from its own file location. If you have multiple clones or a non-standard setup, set the environment variable `SUNSHADE_PROJECT_ROOT` to your repo path (e.g. in your MATLAB `startup.m`).
 
-A successful test run outputs an 11×11 matrix of irradiance values to the command window.
+Add the `current version` folder and all its subfolders to the MATLAB path.
 
----
+### 2. Generate a constellation
 
-## Excel Input Files
-
-The model reads two categories of Excel input:
-
-### Heliogyro kinematics data (`heliogyro kinematics data.xlsx`)
-
-This file defines the position and orientation of each sunshade element in the constellation in relationship to Sun Earth Lagrange 1 (L1). Each row represents one heliogyro unit with six columns:
-
-| Column | Description | Status |
-|--------|-------------|--------|
-| PX | X position in km, relative to L1 (along Sun-Earth axis) | Active |
-| PY | Y position in km, relative to L1 (tangential to planet motion) | Active |
-| PZ | Z position in km, relative to L1 (normal to orbital plane) | Active |
-| NX | X component of surface normal vector | Reserved for future use |
-| NY | Y component of surface normal vector | Reserved for future use |
-| NZ | Z component of surface normal vector | Reserved for future use |
-
-A positive value for the X position describes a sunshade element sunward of L1, which is necessary to offset the solar radiation pressure on a sail. The optimal shade-to-mass equilibrium point for sunshades is considered to be 2.36 million km from Earth.
-
-The normal vector columns (NX, NY, NZ) are included to support future analysis in which individual heliogyros may be tilted relative to the Sun-Earth axis — for example, to steer shade toward specific latitudes or to implement out-of-plane orbital configurations of the type studied by Sánchez & McInnes (2015). This capability is implemented in the model but not yet exercised in current array designs.
-
-### Star spectral data (`star spectral data.xlsx`)
-
-This file defines the solar spectrum and limb darkening coefficients used in the irradiance calculation. The default values are cited from Tripathi et al. (2020) for total intensity. Multiple spectral bands can be defined; the model outputs a separate irradiance result for each band.
-
----
-
-## Diagnostic Tools
-
-Two visualization scripts are included to support analysis and verification:
-
-### `plot_shading_map.m`
-
-Reads a completed NetCDF output file and renders a world map showing the irradiance factor at a specified time step. The map includes coastline overlay, a color scale from full sun to fully shaded, and summary statistics (mean irradiance factor, minimum irradiance factor, fraction of Earth shaded). Useful for verifying that the shade pattern is physically reasonable before submitting to CESM.
-
-To use: set the `nc_file` path and `time_index` in the User Settings section at the top of the script, then run directly in MATLAB.
-
-### `L1_Stability_Region_Data_Visualization.m`
-
-Reads the heliogyro kinematics Excel file and produces a set of diagnostic plots showing the spatial distribution of the sail constellation: a 3D point cloud, orthogonal projections (XY, XZ, and YZ), histograms of the position distributions, and an outer envelope boundary plot of the array face-on. This allows researchers to visually inspect the constellation geometry — including array footprint, radial spread, and depth along the Sun-Earth axis — before running the full irradiance calculation.
-
-To use: set the `filename` path in the User Settings section, then run directly in MATLAB.
-
----
-
-## Bug Fixes: v26.03.18 → v26.03.19
-
-During validation of the model against Sánchez & McInnes (2015), three bugs were identified and corrected. These are documented here in full, as they are non-trivial and affect the physical correctness of the results.
-
-### Bug 1: Incorrect L1 distance calculation
-
-**File**: `operations/distance_PL1___Sr___Sr.m`
-
-**Symptom**: The model placed shade elements approximately 227,000 km too close to Earth, causing the shade's projected area on the Sun to be dramatically underestimated. Most planet surface points saw zero sail intersections with the Sun.
-
-**Root cause**: The L1 equilibrium equation was solved using `fzero` with an initial guess of `0.01 × R`. The equation has two roots, and `fzero` was consistently converging to a spurious root at ~1,294,208 km rather than the physical L1 distance of ~1,521,504 km. Evaluation of the equation at both roots confirmed that neither was exactly zero — the simplified three-body equilibrium equation as implemented does not accurately reproduce the full quintic equation governing the collinear Lagrange point.
-
-**Fix**: Replaced the `fzero` call with the standard first-order approximation for the L1 distance:
+Before running the irradiance model, you need a constellation file. Open and edit `constellation generator/input_Constellation_V2_Parameters.m` to define your array. Key parameters include cluster geometry, placement method (`lattice` or `random`), and any time-varying motion function. Then run:
 
 ```matlab
-% Before (buggy):
-kinematics_SP_data.distance.PL1 = fzero(L1_equilibrium_equation, 0.01 * R);
-
-% After (fixed):
-kinematics_SP_data.distance.PL1 = kinematics_SP_data.distance.SP * (masses.planet / (3 * masses.star))^(1/3);
+generate_constellation_v2
 ```
 
-This approximation gives 1,521,600 km, matching the SPICE-derived expected value of 1,521,504 km to within 100 km (< 0.01% error).
+This produces a `.mat` file in `excel/psf model/`, named with the architecture label, craft count, and date. It also produces a diagnostic image.
+
+### 3. Configure the irradiance model
+
+Open `input/input_Model_Parameters___0___Sr.m` and set:
+
+- **Analysis type**: typically `'irradiance factor'`
+- **Configuration**: `'manual'` for a quick preview, or `'preconfigured: low resolution'` to generate a full CESM-compatible NetCDF
+- **Time parameters**: start date, frequency (days between outputs), and number of periods
+
+Open 'file locations/location_Heliogyro_Kinematics_Data___E___Sr.m'
+- **Constellation file**: point the excel_file_name to the `.mat` file generated in step 2
+
+### 4. Preview in manual mode
+
+With `configuration = 'manual'`, run `analysis_General___0___X` from the MATLAB command window. This outputs a small irradiance matrix to the command window and opens a diagnostic chart — a latitude × month map of the irradiance factor — so you can verify the shade pattern is physically reasonable before running a full year.
+
+### 5. Generate the NetCDF output
+
+Switch to `configuration = 'preconfigured: low resolution'` and re-run `analysis_General___0___X`. This iterates over the full year and a leap year at your specified frequency and writes the 192-latitude × 288-longitude × time irradiance factor grid to a NetCDF file in `numerical control/exports/`. It also saves the diagnostic chart as a .png alongside the .nc file.
 
 ---
 
-### Bug 2: Projection computed as element-wise multiply instead of dot product
+## Constellation Generator V2
 
-**File**: `analyses/analysis_Shaded_Irradiance___Sr___nM.m`
+### Overview
 
-**Symptom**: Even after fixing bug 1, the global average shading was approximately half the expected value.
+The V2 generator creates time-varying constellations of heliogyro sunshades and exports them as `.mat` files for use by the irradiance model. Constellations are made up of one or more named **clusters**, each occupying an elliptical footprint in the Y-Z plane at a defined position in L1-centred synodic coordinates. Each cluster can move over the course of the year via a user-supplied motion function.
 
-**Root cause**: The cosine projection of each sail's area onto the planet-to-star direction was computed using MATLAB's element-wise multiply operator (`.*`) on two 3×N matrices, producing a 3×N result rather than the intended 1×N scalar per sail. A dot product requires multiplying corresponding components and **summing across the three spatial dimensions**, collapsing the result to a single scalar per sail representing the cosine of the angle between the sail's normal and the viewing direction.
+### Input file
 
-**Fix**:
+All parameters are set in `input_Constellation_V2_Parameters.m`. The file is structured and commented for direct editing; no other files need to be changed for typical runs.
 
-```matlab
-% Before (buggy) — produces a 3×N matrix:
-projected_shade_areas = area_effective * vectors.unit.p.S .* unit_normal_vectors_S;
+### Placement methods
 
-% After (fixed) — produces a 1×N scalar per sail:
-projected_shade_areas = area_effective * sum(vectors.unit.p.S .* unit_normal_vectors_S, 1);
-```
+**Lattice** (recommended): Hexagonal close-packing with FCC 3D offset across planes. Craft count is determined by geometry — the lattice fills the ellipse efficiently with guaranteed zero line-of-sight overlap. No minimum-buffer enforcement is needed.
 
----
+**Random**: Craft positions are sampled randomly within the ellipse boundary, with a minimum edge-to-edge buffer enforced between sails. Craft count is set explicitly by `n_craft`.
 
-### Bug 3: Hardcoded Excel range limiting sail count to 11
+### Coordinate convention
 
-**File**: `file locations/location_Heliogyro_Kinematics_Data___E___Sr.m`
+All positions are in km, in the L1-centred synodic frame. X positive = sunward (toward the Sun), Y = tangential to Earth's orbital motion, Z = ecliptic north. A positive X value places a shade element sunward of L1, which is necessary to offset solar radiation pressure on a reflective sail. The optimal shading equilibrium point is approximately 838,400 km sunward of L1 (McInnes, 2002).
 
-**Symptom**: Only 11 sails were loaded regardless of how many were present in the Excel file.
+### Heliogyro position limits and first-order validation
 
-**Root cause**: The Excel ranges for reading heliogyro positions and normal vectors were hardcoded to rows 11–21, loading exactly 11 rows.
+The heliogyro position file defines the allowable region in which a heliogyro can fly, based on rigid blade dynamics and a fixed normal pointing toward the Sun. This region has been found to be more than ample for Earth-relevant shading geometries. Craft positions are checked against this boundary as a first-order validation step during constellation generation.
 
-**Fix**: Extended the ranges to row 10,000, accommodating arrays of up to ~10,000 heliogyros. Blank rows beyond the last sail are automatically filtered downstream by existing NaN-removal logic.
+### Normal vectors
 
-```matlab
-% Before (buggy):
-excel_file.ranges.position_vectors = 'A11:C21';
-excel_file.ranges.normal_vectors   = 'D11:F21';
+The normal vector columns (NX, NY, NZ) in the kinematics file support future analysis in which individual heliogyros may be tilted relative to the Sun-Earth axis — for example, to steer shade toward specific latitudes or to implement out-of-plane orbital configurations of the type studied by Sánchez & McInnes (2015). This capability is implemented in the model but not yet exercised in current array designs.
 
-% After (fixed):
-excel_file.ranges.position_vectors = 'A11:C10000';
-excel_file.ranges.normal_vectors   = 'D11:F10000';
-```
+### Output
+
+The generator writes a `.mat` file to `excel/psf model/`, named with the architecture label, craft count, and date. A preview image of the constellation geometry (face-on Y-Z projection) is saved alongside it. A diagnostic chart opens at run time showing the constellation layout.
+
+### Spectral data
+
+`star spectral data.xlsx` defines the solar spectrum and limb darkening coefficients used in the irradiance calculation. The default values (C1 = 0.61, C2 = 0.39) implement the Eddington linear limb darkening approximation (Tripathi et al., 2020). Multiple spectral bands can be defined; the model produces a separate irradiance result per band.
 
 ---
 
-## Validation
+## File Development History
 
-Following the bug fixes, the model was validated against the baseline case from:
+### v26.03.18 → v26.03.19: Initial validation and bug fixes
 
-**Sánchez, J.-P. and McInnes, C.R. (2015). Optimal Sunshade Configurations for Space-Based Geoengineering near the Sun-Earth L1 Point. *PLOS ONE*, 10(8): e0136648.**
+During validation against Sánchez & McInnes (2015), three bugs were identified and corrected. See `Reports/Sanchez-McInes static array validation analysis.docx` for the full validation methodology and results.
 
-A single solid opaque disk of 1,434 km radius placed 2.44 × 10⁶ km from Earth was modeled. The PSF model returned a center-point shading factor of **1.96%**, compared to the published value of approximately **1.9%** — an error of 3.2%. The penumbra gradient, full-disk coverage, and latitudinal symmetry were all correctly reproduced. This confirms that the model's shading geometry, solar limb darkening implementation, and flux propagation are physically correct.
+**Bug 1 — Incorrect L1 distance calculation** (`distance_PL1___Sr___Sr.m`): `fzero` was converging to a spurious root of the L1 equilibrium equation, placing shade elements ~227,000 km too close to Earth. Fixed by replacing with the standard first-order approximation: `r_L1 = r_SP × (M_earth / 3M_sun)^(1/3)`, accurate to < 0.01%.
 
-A full account of the validation methodology and results is provided in the companion document `validation_section.docx`.
+**Bug 2 — Dot product computed as element-wise multiply** (`analysis_Shaded_Irradiance___Sr___nM.m`): The cosine projection of sail area was computed with `.*` instead of `sum(..., 1)`, producing a 3×N matrix rather than the correct 1×N scalar per sail. This caused approximately half the expected shading to be lost.
+
+**Bug 3 — Hardcoded Excel range limiting sail count to 11** (`location_Heliogyro_Kinematics_Data___E___Sr.m`): Ranges extended to row 20,000; blank rows are filtered downstream by existing NaN-removal logic.
+
+Following these fixes, the model returned a center-point shading factor of **1.96%** against the Sánchez & McInnes published value of ~1.9% (3.2% error). Penumbra gradient, full-disk coverage, and latitudinal symmetry were all correctly reproduced.
+
+---
+
+### v26.03.19 → v26.03.25: Limb darkening investigation
+
+A detailed investigation established that limb darkening is correctly implemented and physically consistent. Key findings: the Eddington linear approximation (I/I₀ = 0.61 + 0.39·cosθ) is appropriate for total solar intensity; the crossover point at which limb darkening makes a shade more vs. less effective than a uniform disk falls at r/R ≈ 0.83; and concentrating the constellation near the optical axis (as most practical designs do) produces slightly higher shading efficiency than a uniform-disk model would predict. See `Reports/limb_darkening_walkthrough.md` and `Reports/limb_darkening_implications.html`.
+
+---
+
+### v26.03.25 → v26.04.03: Shading gradient bug fixes
+
+Analysis of constellation runs revealed a spurious ~38–40% dropoff in shading factor from the equator to the poles — far exceeding the ~7–9% expected from limb darkening alone. Two bugs were identified and fixed. See `Reports/shading_gradient_bug_fix_notes.md` for the full analysis.
+
+**Bug 4 — cos²(θ_S) double-counting** (`analysis_Shaded_Irradiance___Sr___nM.m`): The solar disk projection factor cos(θ_S) was applied twice — once when projecting shade areas and again in the limb darkening term — producing a spurious cos²(θ_S) dependence responsible for ~31 percentage points of the false gradient.
+
+**Bug 5 — Asymmetric limb darkening** (`analysis_Irradiance___Sr___nM.m`): Limb darkening had been inadvertently disabled in the irradiance (denominator) function during earlier testing but remained active in the shaded irradiance (numerator). This caused a ~3× underestimate of absolute shading factor at all latitudes, without affecting the gradient. Both functions now apply limb darkening identically.
+
+After both fixes, the equator-to-pole gradient is 7.32%, consistent with the expected limb darkening effect.
+
+---
+
+### v26.04.03 → v26.04.07: CESM interface investigation and axial tilt fix
+
+A systematic audit of the complete PSF–CESM interface was conducted, accounting for every physical source of solar irradiance variation and establishing clear ownership (PSF vs. CESM-internal) for each. The audit is documented in full in `Reports/CESM and MATLAB Audit.xlsx`. Supporting technical notes covering orbital geometry, solar source properties, coordinate systems, and the CESM `solar_shade` pipeline are in `Reports/`.
+
+The primary finding was a coordinate mapping error in the PSF output:
+
+**Bug 6 — Axial tilt coordinate mapping** (`analysis_General___0___X.m`): The PSF code computes the irradiance factor in a heliocentric, Earth-centred frame where φ = 0 corresponds to the sub-stellar point, not geographic latitude = 0°. Previously, the 192-row result was written directly to the NetCDF file as geographic latitude, pinning the shadow footprint at the equator year-round regardless of season — an error of up to ±23.44°.
+
+The fix implements solar declination δ(day) via the Spencer (1971) Fourier series (new file: `spencer_declination.m`, accurate to ±0.035°). A 27-cell buffer is appended to both poles of the 192-row result before each daily write, and the 192-row output window is extracted at an offset of `round(δ / 0.9424°)` rows. This correctly shifts the shadow footprint to the geographic latitude of the sub-stellar point for each day of year, with an integer rounding error ≤ ±0.47° (half a cell).
+
+Verification (`test_declination_shift_verification.m`): the shadow trough (minimum irradiance factor) tracks the expected sub-stellar latitude on all five test dates (January 1, March 21, June 21, September 22, December 21) to within the rounding margin. See `Reports/cesm_axial_tilt_report.docx` for the full analysis.
+
+
+---
+
+## Other Notes
+
+`L1_Stability_Region_Data_Visualization.m` reads the heliogyro kinematics file and produces diagnostic plots of the constellation geometry: a 3D point cloud, orthogonal projections (XY, XZ, YZ), position histograms, and an outer envelope plot of the array face-on. Useful for spot-checking constellation geometry outside of a full model run. Set the `filename` path in the User Settings section at the top, then run directly in MATLAB.
 
 ---
 
@@ -182,8 +180,10 @@ A full account of the validation methodology and results is provided in the comp
 
 - Raymond, M. (2026). *Irradiance + Sunshade Modeling*, v26.03.18. Planetary Sunshade Foundation.
 - Sánchez, J.-P. and McInnes, C.R. (2015). Optimal Sunshade Configurations for Space-Based Geoengineering near the Sun-Earth L1 Point. *PLOS ONE*, 10(8): e0136648. https://doi.org/10.1371/journal.pone.0136648
+- McInnes, C.R. (2002). Minimum Mass Solar Shield for terrestrial climate control
+- Spencer, J.W. (1971). Fourier series representation of the position of the sun. *Search*, 2(5), 172.
 - Tripathi, D. et al. (2020). Study of Limb Darkening Effect and Rotation Period of Sun by using Solar Telescope. *Journal of Scientific Research*, 64(1).
 
 ---
 
-*Planetary Sunshade Foundation — planetarysunshadeinstitute on GitHub*
+*Planetary Sunshade Institute — planetarysunshadeinstitute on GitHub*
