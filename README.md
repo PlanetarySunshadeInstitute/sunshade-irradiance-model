@@ -1,6 +1,6 @@
 # Planetary Sunshade Irradiance Model
 
-**Planetary Sunshade Institute — v26.04.07**
+**Planetary Sunshade Institute — v26.04.09**
 
 This code is written to support planetary sunshade researchers in generating a constellation of heliogyro sunshades, calculating the shade on the Earth for that array, and outputting a NetCDF (.nc) file which can be read by climate models. Given a described array of sunshade elements near the Sun-Earth L1 point, the model computes the irradiance factor across a latitude-longitude grid of the Earth's surface and exports the result compatible with the NCAR Community Earth System Model (CESM).
 
@@ -155,18 +155,30 @@ After both fixes, the equator-to-pole gradient is 7.32%, consistent with the exp
 
 ---
 
-### v26.04.03 → v26.04.07: CESM interface investigation and axial tilt fix
+### v26.04.03 → v26.04.07: CESM interface investigation and axial tilt identification
 
 A systematic audit of the complete PSF–CESM interface was conducted, accounting for every physical source of solar irradiance variation and establishing clear ownership (PSF vs. CESM-internal) for each. The audit is documented in full in `Reports/CESM and MATLAB Audit.xlsx`. Supporting technical notes covering orbital geometry, solar source properties, coordinate systems, and the CESM `solar_shade` pipeline are in `Reports/`.
 
-The primary finding was a coordinate mapping error in the PSF output:
+The primary finding was a coordinate mapping issue in the PSF output:
 
-**Bug 6 — Axial tilt coordinate mapping** (`analysis_General___0___X.m`): The PSF code computes the irradiance factor in a heliocentric, Earth-centred frame where φ = 0 corresponds to the sub-stellar point, not geographic latitude = 0°. Previously, the 192-row result was written directly to the NetCDF file as geographic latitude, pinning the shadow footprint at the equator year-round regardless of season — an error of up to ±23.44°.
+**Bug 6 — Axial tilt coordinate mapping** (`analysis_General___0___X.m`): The PSF code computes the irradiance factor in a heliocentric, Earth-centred frame where φ = 0 corresponds to the sub-stellar point, not geographic latitude = 0°. The 192-row result is written directly to the NetCDF file as geographic latitude, which pins the shadow footprint at the equator year-round regardless of season — an error of up to ±23.44°.
 
-The fix implements solar declination δ(day) via the Spencer (1971) Fourier series (new file: `spencer_declination.m`, accurate to ±0.035°). A 27-cell buffer is appended to both poles of the 192-row result before each daily write, and the 192-row output window is extracted at an offset of `round(δ / 0.9424°)` rows. This correctly shifts the shadow footprint to the geographic latitude of the sub-stellar point for each day of year, with an integer rounding error ≤ ±0.47° (half a cell).
+A fix was prototyped using solar declination δ(day) via the Spencer (1971) Fourier series, shifting the output window by `round(δ / 0.9424°)` rows each day. However, this implementation was subsequently reverted: the coordinate transformation between the PSF sun-fixed frame and CESM's geographic frame involves several interacting considerations (declination shift, the new longitude disc representation, and the CESM science team's `solar_shade.F90` rotation logic) that are best resolved together. Bug 6 remains open and will be addressed as a dedicated future ticket in coordination with the CESM interface work.
 
-Verification (`test_declination_shift_verification.m`): the shadow trough (minimum irradiance factor) tracks the expected sub-stellar latitude on all five test dates (January 1, March 21, June 21, September 22, December 21) to within the rounding margin. See `Reports/cesm_axial_tilt_report.docx` for the full analysis.
 
+---
+
+### v26.04.07 → v26.04.09: Full longitude disc output
+
+Added a new `'preconfigured: full resolution'` configuration that computes irradiance factors across all 144 disc longitude columns (the full sun-facing hemisphere), rather than computing a single central strip and replicating it.
+
+The `.nc` output file now carries physically distinct values at each of the 288 CESM longitude grid points. The 144 columns on the sun-facing side each reflect their correct angular distance from the sub-stellar point; the 144 nightside columns (CESM lon 90°–270°) are set to 1.0. The sub-stellar point is placed at CESM longitude 0°, consistent with the noon UTC computation time used throughout the model. The CESM science team will handle rotating the Earth underneath this fixed sun-frame pattern when applying the file in a climate run.
+
+The existing `'preconfigured: low resolution'` configuration is unchanged and remains the default for quick runs.
+
+**New file:** `preconfigurations/preconfiguration_Partitions_Climate_Model_Full_Resolution___Sr___Sr.m`
+
+**Modified files:** `import/import_Model_Parameters___0___Sr.m`, `analyses/analysis_General___0___X.m`, `input/input_Model_Parameters___0___Sr.m`
 
 ---
 
@@ -174,9 +186,33 @@ Verification (`test_declination_shift_verification.m`): the shadow trough (minim
 
 ### Active development
 
-**Longitude averaging and grid representation** — The current implementation takes a single latitude strip and replicates it uniformly across all 288 CESM longitude grid points. This is a  correct approximation for a constellation symmetric around the Earth-Sun axis, but the slight decrease in shade across the radius of the earth will decrease the average shade on the middle strip slightly. Plus, future constellations may have longitudinally-referenced shading. 
+**Bug 6 — Axial tilt coordinate mapping** — Identified in v26.04.07 but not yet implemented. The PSF frame and CESM geographic frame require a coordinated treatment of declination shift, the longitude disc representation, and the CESM rotation logic. Tracked as a future ticket.
 
-**L1 distance reconciliation** — Reconcile the current first-order L1 approximation with Matt's updated orbital mechanics work.
+**L1 distance calculation upgrade** — The model currently uses the first-order Hill sphere (cube root) approximation for L1 distance:
+
+```
+r_L1 = R × (M_earth / 3·M_sun)^(1/3)
+```
+
+Matt Raymond has developed a more precise implementation that solves the full restricted three-body equilibrium equation numerically using `fzero`. The equilibrium condition (forces balanced in the rotating frame, with the centripetal term referenced to the system barycenter) is:
+
+```
+G·M_sun / (R−r)²  −  G·M_earth / r²  −  ω²·(μR − r)  =  0
+
+where  μ = M_sun / (M_sun + M_earth),  ω² = G·(M_sun + M_earth) / R³
+```
+
+**Quantified error of the current approximation** (using JPL physical constants: G = 6.6743×10⁻¹⁷ N·km²/kg², M_sun = 1.9884×10³⁰ kg, M_earth = 5.9722×10²⁴ kg):
+
+| Orbital position | Cube root (km) | fzero solution (km) | Error (km) | Error (%) |
+|---|---|---|---|---|
+| Perihelion (Jan ~3), R = 147.095×10⁶ km | 1,471,523 | 1,466,601 | +4,922 | +0.336% |
+| Mean, R = 149.598×10⁶ km | 1,496,562 | 1,491,558 | +5,005 | +0.336% |
+| Aphelion (Jul ~4), R = 152.100×10⁶ km | 1,521,592 | 1,516,501 | +5,091 | +0.336% |
+
+The cube root approximation overestimates the L1 distance by ~5,000 km (~0.34%) consistently across the year. Both methods track the seasonal variation similarly (~50,000 km perihelion-to-aphelion swing). The correction for using the system barycenter rather than the Sun as the rotation origin is ~46 km — negligible.
+
+At the scale of current constellation geometries, a 0.34% offset in the L1 reference point has a correspondingly small effect on shadow footprint calculations. Upgrade when higher precision is needed. Matt's `distance_PL1___2Sr___Sr.m` (April 13, 2026) contains the full implementation with three selectable modes: `'planet position and velocity data'`, `'planet position data'`, and `'cube root approximation'`.
 
 **Blade Angle θ** — Implement the ability for shades to vary their overall blade angle θ and adjust their distance from the Sun accordingly. A shade tilted away from normal moves to a new equilibrium point further from the Sun, reducing its effective shade area but allowing preferential shading of one hemisphere. The intended design: maximum shading intensity during northern hemisphere summer, reduced but still significant shading during southern hemisphere summer, with the constellation "in motion" between the two. Sub-task: establish the correlation between distance from the Sun and average blade angle θ using reference data.
 
@@ -204,7 +240,6 @@ Verification (`test_declination_shift_verification.m`): the shadow trough (minim
 - Raymond, M. (2026). *Irradiance + Sunshade Modeling*, v26.03.18. Planetary Sunshade Foundation.
 - Sánchez, J.-P. and McInnes, C.R. (2015). Optimal Sunshade Configurations for Space-Based Geoengineering near the Sun-Earth L1 Point. *PLOS ONE*, 10(8): e0136648. https://doi.org/10.1371/journal.pone.0136648
 - McInnes, C.R. (2002). Minimum Mass Solar Shield for terrestrial climate control
-- Spencer, J.W. (1971). Fourier series representation of the position of the sun. *Search*, 2(5), 172.
 - Tripathi, D. et al. (2020). Study of Limb Darkening Effect and Rotation Period of Sun by using Solar Telescope. *Journal of Scientific Research*, 64(1).
 
 ---
