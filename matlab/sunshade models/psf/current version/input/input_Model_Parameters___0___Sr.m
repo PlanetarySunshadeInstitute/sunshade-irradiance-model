@@ -19,11 +19,26 @@ model_parameters.analysis_type               = 'irradiance factor';
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Input the desired partition configuration type: 'manual', 'preconfigured: low resolution'     
+%	Input the desired partition configuration type:
+%
+%       'manual'                       — user-defined partition parameters below; results output to command window.
+%
+%       'preconfigured: low resolution' — CESM f09 grid (192 lat x 288 lon). Computes irradiance factor at the
+%                                         central longitude strip only (theta.n = 1) and replicates it across all
+%                                         288 CESM longitude columns. Fast. Correct for rotationally symmetric
+%                                         constellations when only the latitude profile is needed.
+%
+%       'preconfigured: full resolution' — CESM f09 grid (192 lat x 288 lon). Computes irradiance factor across
+%                                          all 144 disc longitude columns (the full sun-facing hemisphere), so each
+%                                          CESM longitude bin receives its physically correct value based on its
+%                                          angular distance from the sub-stellar point. The sub-stellar point is
+%                                          placed at CESM longitude 0°; the 144 nightside columns are set to 1.0.
+%                                          ~144x slower than low resolution. Use when true longitude variation
+%                                          in the output file is required.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-model_parameters.configuration               = 'manual';
+model_parameters.configuration               = 'preconfigured: full resolution';
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%

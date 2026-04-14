@@ -36,8 +36,19 @@ switch model_parameters.configuration
 		model_parameters                        = preconfiguration_Partitions_Climate_Model_Low_Resolution___Sr___Sr (model_parameters);
 
 
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%	Case 'preconfigured: full resolution': compute irradiance factors across all 144 disc longitude columns (the full sun-facing hemisphere),
+%   producing a physically correct 192 x 288 lat/lon output for CESM. The sub-stellar point is placed at CESM longitude 0°.
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+	case 'preconfigured: full resolution'
+
+		model_parameters                        = preconfiguration_Partitions_Climate_Model_Full_Resolution___Sr___Sr (model_parameters);
+
+
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
-%%%%	End preconfiguration cases. 
+%%%%	End preconfiguration cases.
 %%%%::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::%%%%
 
 

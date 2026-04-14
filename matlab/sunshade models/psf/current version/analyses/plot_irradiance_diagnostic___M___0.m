@@ -4,7 +4,7 @@ function plot_irradiance_diagnostic___M___0 (results_2d, lat_deg, time_doy, save
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%	Plot a two-panel irradiance factor diagnostic figure:                                                                                                   %&%%
-%%%%	  Panel 1 (left)  — latitude vs month contour chart.                                                                                                   %&%%
+%%%%	  Panel 1 (left)  — degrees from sub-stellar point vs month contour chart.                                                                            %&%%
 %%%%	  Panel 2 (right) — scalar summary: constellation metadata and area-weighted                                                                           %&%%
 %%%%	                    mean irradiance factor for each of the 12 diagnostic months.                                                                       %&%%
 %%%%                                                                                                                                                            %&%%
@@ -16,7 +16,7 @@ function plot_irradiance_diagnostic___M___0 (results_2d, lat_deg, time_doy, save
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 %   INPUTS
 %     results_2d      [N_lat x N_time]   irradiance factor values (central longitude column, monthly samples)
-%     lat_deg         [1 x N_lat]        latitude in degrees, e.g. linspace(-90, 90, N_lat)
+%     lat_deg         [1 x N_lat]        degrees from sub-stellar point, e.g. linspace(-90, 90, N_lat)
 %     time_doy        [1 x N_time]       day-of-year for each time column (1-indexed)
 %     save_path       (optional string)  full path incl. filename for PNG output;
 %                                        if omitted the figure is left open for inspection
@@ -171,8 +171,8 @@ cb1.FontSize       = 9;
 cb1.TickLabelsMode = 'manual';
 cb1.TickLabels     = arrayfun(@(v) sprintf('%.4f', v), cb1.Ticks, 'UniformOutput', false);
 
-ylabel(ax1, 'Latitude [deg]', 'FontSize', 11);
-title(ax1,  'Irradiance factor — latitude vs month', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel(ax1, 'Degrees from sub-stellar point [deg]', 'FontSize', 11);
+title(ax1,  'Irradiance factor — sub-stellar degrees vs month', 'FontSize', 12, 'FontWeight', 'bold');
 
 xlim(ax1, [1, 365]);
 ylim(ax1, [-90, 90]);

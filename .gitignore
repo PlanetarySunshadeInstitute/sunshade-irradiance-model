@@ -10,6 +10,9 @@ numerical control/exports/
 Planning/
 Analysis/
 
+# Archived reports (working files retracted from active development)
+Reports/archive/
+
 # Generated constellation output files
 excel/psf model/constellation_*.mat
 excel/psf model/constellation_*.xlsx
@@ -24,6 +27,9 @@ test_surrogate.mat
 
 # Generated NetCDF outputs (large binary files, not source)
 *.nc
+
+# LibreOffice lock files (transient, created when a file is open)
+**/.~lock.*#
 
 # Polar optimizer scratch (commit explicitly when ready)
 matlab/sunshade models/psf/current version/polar_optimizer/
