@@ -172,10 +172,12 @@ switch true
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
-%	Copy and rename the template in the exports folder.      
+%	Copy and rename the template in the exports folder.
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
+		fprintf('DEBUG: Template path = %s\n', nc_files.locations.templates.irradiance_factor);
+		fprintf('DEBUG: Export path = %s\n', nc_files.locations.exports.current_file);
 		copyfile(nc_files.locations.templates.irradiance_factor, nc_files.locations.exports.current_file);
 
 
