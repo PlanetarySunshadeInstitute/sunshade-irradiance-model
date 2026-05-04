@@ -38,8 +38,8 @@
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
 
 
-nc_file_path  = '/Users/morgangoodwin/Desktop/PSF/MatLab/numerical control/exports/L1-RX-2026-04-10-001.nc';       % ← set full path to your NC file here, e.g.:
-                          %   '/path/to/exports/L1-RX-2026-04-07-001.nc'
+nc_file_path  = '/Users/morgangoodwin/Desktop/PSI/Matlab/numerical control/exports/L1-RX-2026-04-17-001.nc';       % ← set full path to your NC file here, e.g.:
+                          %   '/path/to/exports/L1-RX-2026-04-17-001.nc'
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------------------%
@@ -236,7 +236,7 @@ stats_str = sprintf([ ...
     'Grid:  %d phi  x  %d theta\n',          ...
     'Time:  %d-day file,  4 samples\n',      ...
     '\n',                                    ...
-    'Irradiance factor\n',                   ...
+    'Dimming factor\n',                      ...
     '  Min          %.8f\n',                 ...
     '  Max          %.8f\n',                 ...
     '  Range        %.2e\n',                 ...
@@ -264,13 +264,13 @@ stats_str = sprintf([ ...
 
 
 fig = figure( ...
-    'Name',        'NC File Viewer — Irradiance Factor', ...
+    'Name',        'NC File Viewer — Dimming Factor', ...
     'NumberTitle', 'off', ...
     'Color',       'white', ...
     'Position',    [80, 80, 1300, 820] );
 
 tl = tiledlayout(fig, 2, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-tl.Title.String   = sprintf('Irradiance factor — sun-facing hemisphere   |   %s', nc_stem);
+tl.Title.String   = sprintf('Dimming factor — sun-facing hemisphere   |   %s', nc_stem);
 tl.Title.FontSize = 12;
 tl.Title.FontWeight = 'bold';
 
@@ -326,6 +326,18 @@ for k = 1 : 4
 
     set(ax, 'TickDir', 'out', 'Box', 'on', 'FontSize', 9, 'Layer', 'top');
 
+    %   Grid lines at ±30° and ±60° in both theta (horizontal) and phi (vertical).
+    %   'Layer','top' on the axes ensures these render above the imagesc data.
+    hold(ax, 'on');
+    grid_vals = [-60, -30, 0, 30, 60];
+    for gv = grid_vals
+        plot(ax, [theta_deg(1), theta_deg(end)], [gv, gv], ...
+             'Color', [0.5 0.5 0.5], 'LineWidth', 0.4, 'LineStyle', '--');
+        plot(ax, [gv, gv], [phi_deg(1), phi_deg(end)], ...
+             'Color', [0.5 0.5 0.5], 'LineWidth', 0.4, 'LineStyle', '--');
+    end
+    hold(ax, 'off');
+
 end
 
 
@@ -335,7 +347,7 @@ end
 
 
 cb              = colorbar(ax_panels(4), 'southoutside');
-cb.Label.String = sprintf('Irradiance factor   [%.6f  –  %.6f]   (colormap gamma = %.2f)', v_min, v_max, gamma);
+cb.Label.String = sprintf('Dimming factor   [%.6f  –  %.6f]   (colormap gamma = %.2f)', v_min, v_max, gamma);
 cb.Label.FontSize = 9;
 cb.FontSize       = 8;
 cb.TickLabelsMode = 'manual';
@@ -379,7 +391,7 @@ if save_png
     png_path = fullfile(char(nc_folder), sprintf('%s_seasonal_viewer.png', char(nc_stem_save)));
 
     try
-        exportgraphics(fig, png_path, 'Resolution', 200);
+        exportgraphics(fig, png_path, 'Resolution', 300);
         fprintf('Saved viewer PNG:\n  %s\n', png_path);
     catch
         try
@@ -388,6 +400,19 @@ if save_png
         catch err
             warning('Could not save PNG: %s', err.message);
         end
+    end
+
+    %   Also save to writeup/figures/ for the methods paper.
+    %   Path is resolved relative to the location of this script file.
+    repo_root      = fileparts(fileparts(fileparts(fileparts(fileparts(fileparts(mfilename('fullpath')))))));
+    writeup_path   = fullfile(repo_root, 'writeup', 'figures', 'fig_seasonal_disc.png');
+    writeup_dir    = fileparts(writeup_path);
+    if ~isfolder(writeup_dir), mkdir(writeup_dir); end
+    try
+        exportgraphics(fig, writeup_path, 'Resolution', 300);
+        fprintf('Saved writeup figure:\n  %s\n', writeup_path);
+    catch err
+        warning('Could not save writeup figure: %s', err.message);
     end
 
 end

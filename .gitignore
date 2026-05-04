@@ -33,3 +33,7 @@ test_surrogate.mat
 
 # Polar optimizer scratch (commit explicitly when ready)
 matlab/sunshade models/psf/current version/polar_optimizer/
+
+# Python build artifacts and editor metadata
+**/__pycache__/
+**/.obsidian/

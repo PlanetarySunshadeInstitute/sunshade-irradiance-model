@@ -1,0 +1,16 @@
+# coordinate_transformation — runtime dependencies
+#
+# Install with:
+#     pip install -r python/coordinate_transformation/requirements.txt
+#
+# All three packages are listed on PyPI and are standard in scientific Python
+# stacks. We pin lower bounds loosely to keep the package usable on older
+# conda environments.
+
+numpy>=1.20
+netCDF4>=1.6
+
+# Optional: progress bars during long runs. If tqdm is not installed, the
+# orchestrator falls back to periodic log lines, so it is safe to remove this
+# line on air-gapped machines.
+tqdm>=4.60
